@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Monitoramento Premium | Companhia Carris Portoalegrense</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+    
+    <!-- CSS Premium -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="map"></div>
+    
+    <!-- Controles -->
+    <div class="view-controls">
+        <label for="viz-mode">🎨 Modo de Visualização</label>
+        <select id="viz-mode" onchange="updateVisualization(this.value)">
+            <option value="occupancy">📊 Taxa de Ocupação</option>
+            <option value="boarding">↗️ Apenas Embarques</option>
+            <option value="alighting">↘️ Apenas Desembarques</option>
+        </select>
+        
+        <label style="margin-top: 16px;">
+            <input type="checkbox" id="cluster-toggle" onchange="toggleClustering(this.checked)" checked>
+            Agrupar Pontos Próximos
+        </label>
+    </div>
+    
+    <!-- Painel Premium -->
+    <div class="info-panel">
+        <h3>📊 Legenda</h3>
+        <div id="legend-container"></div>
+        
+        <div class="legend-section">
+            <h4>📈 Estatísticas</h4>
+            <div class="stats-box">
+                <strong id="visible-count">0</strong> de <strong id="point-count">0</strong> visíveis<br>
+                <strong id="total-boarding">0</strong> embarques<br>
+                <strong id="total-alighting">0</strong> desembarques<br>
+                <strong id="avg-occupancy">0</strong> média/estação
+            </div>
+        </div>
+        
+        <div class="legend-section">
+            <h4>🚏 Estações</h4>
+            <div id="stations-list"></div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
