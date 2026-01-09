@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistema de Monitoramento Premium | Companhia Carris Portoalegrense</title>
+    <title>Sistema de Monitoramento | Companhia Carris Portoalegrense</title>
     
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -18,11 +18,83 @@
     
     <!-- Controles -->
     <div class="view-controls">
+        <h3>🎛️ Controles</h3>
+        
+        <!-- Filtro Principal: Viagem -->
+        <div class="filter-section main-filter">
+            <h4>🚌 Selecionar Viagem</h4>
+            
+            <label for="filter-trip">Viagem:</label>
+            <select id="filter-trip" onchange="applyTripFilter()">
+                <option value="all">📋 Todas as Viagens</option>
+            </select>
+            
+            <!-- Resumo da Viagem Selecionada -->
+            <div id="trip-summary" class="trip-summary" style="display: none;">
+                <div class="summary-header">
+                    <h5 id="summary-title">📊 Resumo da Viagem</h5>
+                </div>
+                
+                <div class="summary-stats">
+                    <div class="summary-stat-card embarque">
+                        <div class="stat-icon">↗️</div>
+                        <div class="stat-value" id="summary-boarding">0</div>
+                        <div class="stat-label">Embarques</div>
+                    </div>
+                    
+                    <div class="summary-stat-card desembarque">
+                        <div class="stat-icon">↘️</div>
+                        <div class="stat-value" id="summary-alighting">0</div>
+                        <div class="stat-label">Desembarques</div>
+                    </div>
+                    
+                    <div class="summary-stat-card passageiros">
+                        <div class="stat-icon">👥</div>
+                        <div class="stat-value" id="summary-passengers">0</div>
+                        <div class="stat-label">Passageiros</div>
+                    </div>
+                    
+                    <div class="summary-stat-card estacoes">
+                        <div class="stat-icon">🚏</div>
+                        <div class="stat-value" id="summary-stations">0</div>
+                        <div class="stat-label">Estações</div>
+                    </div>
+                </div>
+                
+                <div class="summary-details">
+                    <div class="summary-detail-row">
+                        <span class="detail-label">🚗 Placa:</span>
+                        <span class="detail-value" id="summary-plate">-</span>
+                    </div>
+                    <div class="summary-detail-row">
+                        <span class="detail-label">➡️ Direção:</span>
+                        <span class="detail-value" id="summary-direction">-</span>
+                    </div>
+                    <div class="summary-detail-row">
+                        <span class="detail-label">⏰ Período:</span>
+                        <span class="detail-value" id="summary-period">-</span>
+                    </div>
+                    <div class="summary-detail-row">
+                        <span class="detail-label">📊 Média/Estação:</span>
+                        <span class="detail-value" id="summary-avg">-</span>
+                    </div>
+                </div>
+            </div>
+            
+            <button class="reset-filters-btn" onclick="resetTripFilter()">
+                🔄 Ver Todas as Viagens
+            </button>
+        </div>
+        
+        <hr style="border: none; border-top: 1px solid rgba(255,255,255,0.2); margin: 20px 0;">
+        
+        <!-- Modo de Visualização -->
         <label for="viz-mode">🎨 Modo de Visualização</label>
         <select id="viz-mode" onchange="updateVisualization(this.value)">
-            <option value="occupancy">📊 Taxa de Ocupação</option>
-            <option value="boarding">↗️ Apenas Embarques</option>
-            <option value="alighting">↘️ Apenas Desembarques</option>
+            <option value="both">📊 Embarques + Desembarques</option>
+            <option value="boarding">🟦 Apenas Embarques</option>
+            <option value="alighting">🟥 Apenas Desembarques</option>
+            <option value="occupancy">📈 Taxa de Ocupação</option>
         </select>
         
         <label style="margin-top: 16px;">

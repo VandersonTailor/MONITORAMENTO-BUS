@@ -13,10 +13,49 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 const markers = [];
 const latlngs = [];
 let allStationsData = [];
-let currentVisualizationMode = 'occupancy';
+let allTrips = [];
+let currentVisualizationMode = 'both';
 let markerClusterGroup = null;
 let clusteringEnabled = true;
 let polyline = null;
+let selectedTripId = 'all';
+let routeLayers = {};
+let loadedRoutes = {};
+
+// ============================================
+// CONFIGURAÇÃO DE ROTAS GEOJSON - CORES DISTINTAS
+// ============================================
+
+const routeConfig = {
+    'viagem-1': {
+        file: 'rotas/linha_6IP.geojson',
+        color: '#FF1744',      // Vermelho vibrante
+        weight: 6,
+        opacity: 0.85,
+        name: 'Linha 6IP'
+    },
+    'viagem-2': {
+        file: 'rotas/linha_1BCSOR.geojson',
+        color: '#00E676',      // Verde neon
+        weight: 6,
+        opacity: 0.85,
+        name: 'Linha 1BCSOR'
+    },
+    'viagem-3': {
+        file: 'rotas/linha_3_5V.geojson',
+        color: '#FFD600',      // Amarelo ouro
+        weight: 6,
+        opacity: 0.85,
+        name: 'Linha 3 5V'
+    },
+    'viagem-4': {
+        file: 'rotas/linha_4_12V.geojson',
+        color: '#2979FF',      // Azul elétrico
+        weight: 6,
+        opacity: 0.85,
+        name: 'Linha 4 12V'
+    }
+};
 
 // ============================================
 // FUNÇÕES DE PARSE
@@ -41,7 +80,86 @@ function parseLatLng(coordStr) {
 }
 
 // ============================================
-// SISTEMA DE CORES
+// CARREGAR ROTAS GEOJSON
+// ============================================
+
+function loadRoute(tripId) {
+    return new Promise((resolve) => {
+        if (loadedRoutes[tripId]) {
+            resolve(loadedRoutes[tripId]);
+            return;
+        }
+        
+        const config = routeConfig[tripId];
+        if (!config) {
+            console.warn(`⚠️ Nenhuma configuração de rota para ${tripId}`);
+            resolve(null);
+            return;
+        }
+        
+        fetch(config.file)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`Arquivo ${config.file} não encontrado`);
+                }
+                return response.json();
+            })
+            .then(geojsonData => {
+                console.log(`✅ Rota ${config.name} carregada`);
+                loadedRoutes[tripId] = geojsonData;
+                resolve(geojsonData);
+            })
+            .catch(error => {
+                console.error(`❌ Erro ao carregar ${config.file}:`, error);
+                resolve(null);
+            });
+    });
+}
+
+function displayRoute(tripId) {
+    if (routeLayers[tripId]) {
+        map.removeLayer(routeLayers[tripId]);
+    }
+    
+    const config = routeConfig[tripId];
+    if (!config) return;
+    
+    loadRoute(tripId).then(geojsonData => {
+        if (!geojsonData) return;
+        
+        const layer = L.geoJSON(geojsonData, {
+            style: {
+                color: config.color,
+                weight: config.weight,
+                opacity: config.opacity,
+                lineJoin: 'round',
+                lineCap: 'round'
+            }
+        }).addTo(map);
+        
+        routeLayers[tripId] = layer;
+        
+        console.log(`🗺️ Rota ${config.name} exibida no mapa`);
+    });
+}
+
+function clearAllRoutes() {
+    Object.keys(routeLayers).forEach(tripId => {
+        if (routeLayers[tripId]) {
+            map.removeLayer(routeLayers[tripId]);
+        }
+    });
+    routeLayers = {};
+}
+
+function displayAllRoutes() {
+    allTrips.forEach(trip => {
+        displayRoute(trip.id);
+    });
+}
+
+// ============================================
+// SISTEMA DE CORES ATUALIZADO
 // ============================================
 
 function getOccupancyColor(occupancy) {
@@ -50,53 +168,259 @@ function getOccupancyColor(occupancy) {
     return '#F44336';
 }
 
-function getBoardingColor(boarding) {
-    if (boarding < 10) return '#90CAF9';
-    if (boarding < 20) return '#42A5F5';
-    return '#1565C0';
-}
-
-function getAlightingColor(alighting) {
-    if (alighting < 10) return '#F48FB1';
-    if (alighting < 20) return '#EC407A';
-    return '#C2185B';
-}
-
-function getMarkerColor(stationData, mode) {
+function getMarkerColorByFlow(stationData, mode) {
     switch(mode) {
+        case 'boarding':
+            if (stationData.boarding === 0) return '#E0E0E0';
+            if (stationData.boarding < 10) return '#90CAF9';
+            if (stationData.boarding < 20) return '#42A5F5';
+            return '#1565C0';
+            
+        case 'alighting':
+            if (stationData.alighting === 0) return '#E0E0E0';
+            if (stationData.alighting < 10) return '#F48FB1';
+            if (stationData.alighting < 20) return '#EC407A';
+            return '#C2185B';
+            
+        case 'both':
+            const totalFlow = stationData.boarding + stationData.alighting;
+            if (totalFlow === 0) return '#9E9E9E';
+            
+            const boardingRatio = stationData.boarding / totalFlow;
+            if (boardingRatio > 0.6) return '#2196F3';
+            if (boardingRatio < 0.4) return '#F44336';
+            return '#9C27B0';
+            
         case 'occupancy':
             return getOccupancyColor(stationData.occupancy);
-        case 'boarding':
-            return getBoardingColor(stationData.boarding);
-        case 'alighting':
-            return getAlightingColor(stationData.alighting);
+            
         default:
-            return getOccupancyColor(stationData.occupancy);
+            return '#9C27B0';
     }
 }
 
-function getMarkerSize(boarding, alighting) {
-    const flow = boarding + alighting;
-    if (flow < 10) return 7;
-    if (flow < 20) return 9;
-    return 11;
+function getMarkerSizeByFlow(stationData, mode) {
+    let value;
+    
+    switch(mode) {
+        case 'boarding':
+            value = stationData.boarding;
+            break;
+        case 'alighting':
+            value = stationData.alighting;
+            break;
+        case 'both':
+            value = stationData.boarding + stationData.alighting;
+            break;
+        case 'occupancy':
+            value = stationData.carried;
+            break;
+        default:
+            value = stationData.boarding + stationData.alighting;
+    }
+    
+    if (value === 0) return 5;
+    if (value < 10) return 8;
+    if (value < 20) return 11;
+    if (value < 30) return 14;
+    return 17;
 }
 
 // ============================================
-// FILTRO AUTOMÁTICO POR VISUALIZAÇÃO
+// IDENTIFICAÇÃO DE VIAGENS POR BLOCOS DE HORÁRIO
 // ============================================
 
-function shouldShowMarker(stationData, mode) {
-    switch(mode) {
-        case 'occupancy':
-            return true;
-        case 'boarding':
-            return stationData.boarding > 0;
-        case 'alighting':
-            return stationData.alighting > 0;
-        default:
-            return true;
+function identifyTrips() {
+    const tripBlocks = [
+        {
+            id: 'viagem-1',
+            name: 'Viagem 1 - Linha 6IP',
+            expectedLine: '6IP',
+            startTime: '00:00:00',
+            endTime: '07:59:59'
+        },
+        {
+            id: 'viagem-2',
+            name: 'Viagem 2 - Linha 1BCSOR',
+            expectedLine: '1BCSOR',
+            startTime: '08:00:00',
+            endTime: '14:00:00'
+        },
+        {
+            id: 'viagem-3',
+            name: 'Viagem 3 - Linha 3 5V',
+            expectedLine: '3 5V',
+            startTime: '14:10:00',
+            endTime: '15:59:59'
+        },
+        {
+            id: 'viagem-4',
+            name: 'Viagem 4 - Linha 4 12V',
+            expectedLine: '4 12V',
+            startTime: '16:00:00',
+            endTime: '23:59:59'
+        }
+    ];
+    
+    const tripMap = new Map();
+    
+    tripBlocks.forEach(block => {
+        tripMap.set(block.id, {
+            id: block.id,
+            name: block.name,
+            line: block.expectedLine,
+            startTime: block.startTime,
+            endTime: block.endTime,
+            stationIndices: [],
+            stationCount: 0,
+            totalBoarding: 0,
+            totalAlighting: 0,
+            driver: 'N/A',
+            plate: 'N/A',
+            direction: 'N/A',
+            actualStartTime: null,
+            actualEndTime: null
+        });
+    });
+    
+    allStationsData.forEach((station, index) => {
+        const stationTime = station.time1.split(' ')[1];
+        
+        for (const block of tripBlocks) {
+            if (stationTime >= block.startTime && stationTime <= block.endTime) {
+                const trip = tripMap.get(block.id);
+                
+                if (trip.stationIndices.length === 0) {
+                    trip.driver = station.driver;
+                    trip.plate = station.plate;
+                    trip.direction = station.direction;
+                    trip.actualStartTime = station.time1;
+                }
+                
+                trip.stationIndices.push(index);
+                trip.stationCount++;
+                trip.totalBoarding += station.boarding;
+                trip.totalAlighting += station.alighting;
+                trip.actualEndTime = station.time1;
+                
+                break;
+            }
+        }
+    });
+    
+    allTrips = Array.from(tripMap.values()).filter(trip => trip.stationCount > 0);
+    
+    console.log(`🚌 ${allTrips.length} viagens identificadas por blocos de horário:`);
+    allTrips.forEach(trip => {
+        const inicio = trip.actualStartTime ? trip.actualStartTime.split(' ')[1].substring(0, 5) : 'N/A';
+        const fim = trip.actualEndTime ? trip.actualEndTime.split(' ')[1].substring(0, 5) : 'N/A';
+        console.log(`  ✅ ${trip.name}: ${inicio} → ${fim} (${trip.stationCount} estações, ${trip.totalBoarding} embarques)`);
+    });
+    
+    return allTrips;
+}
+
+function populateTripFilter() {
+    const select = document.getElementById('filter-trip');
+    select.innerHTML = '<option value="all">📋 Todas as Viagens</option>';
+    
+    allTrips.forEach((trip) => {
+        const option = document.createElement('option');
+        option.value = trip.id;
+        
+        const inicio = trip.actualStartTime ? trip.actualStartTime.split(' ')[1].substring(0, 5) : 'N/A';
+        const fim = trip.actualEndTime ? trip.actualEndTime.split(' ')[1].substring(0, 5) : 'N/A';
+        
+        option.textContent = `${trip.name} - ${inicio} → ${fim}`;
+        select.appendChild(option);
+    });
+    
+    console.log(`✅ Filtro de viagens populado com ${allTrips.length} opções`);
+}
+
+function applyTripFilter() {
+    selectedTripId = document.getElementById('filter-trip').value;
+    
+    const summaryEl = document.getElementById('trip-summary');
+    
+    if (selectedTripId !== 'all') {
+        const trip = allTrips.find(t => t.id === selectedTripId);
+        if (trip) {
+            // Mostrar resumo
+            if (summaryEl) {
+                summaryEl.style.display = 'block';
+                
+                const boardingEl = document.getElementById('summary-boarding');
+                const alightingEl = document.getElementById('summary-alighting');
+                const passengersEl = document.getElementById('summary-passengers');
+                const stationsEl = document.getElementById('summary-stations');
+                const plateEl = document.getElementById('summary-plate');
+                const directionEl = document.getElementById('summary-direction');
+                const periodEl = document.getElementById('summary-period');
+                const avgEl = document.getElementById('summary-avg');
+                
+                if (boardingEl) boardingEl.textContent = trip.totalBoarding;
+                if (alightingEl) alightingEl.textContent = trip.totalAlighting;
+                if (passengersEl) passengersEl.textContent = trip.totalBoarding + trip.totalAlighting;
+                if (stationsEl) stationsEl.textContent = trip.stationCount;
+                if (plateEl) plateEl.textContent = trip.plate;
+                if (directionEl) directionEl.textContent = trip.direction;
+                
+                if (periodEl && trip.actualStartTime && trip.actualEndTime) {
+                    const inicio = trip.actualStartTime.split(' ')[1].substring(0, 5);
+                    const fim = trip.actualEndTime.split(' ')[1].substring(0, 5);
+                    periodEl.textContent = `${inicio} → ${fim}`;
+                }
+                
+                if (avgEl && trip.stationCount > 0) {
+                    const avg = Math.round((trip.totalBoarding + trip.totalAlighting) / trip.stationCount);
+                    avgEl.textContent = avg;
+                }
+            }
+            
+            console.log(`🎯 Viagem selecionada: ${trip.name}`);
+            
+            clearAllRoutes();
+            displayRoute(selectedTripId);
+        }
+    } else {
+        if (summaryEl) {
+            summaryEl.style.display = 'none';
+        }
+        console.log('📋 Mostrando todas as viagens');
+        
+        clearAllRoutes();
+        displayAllRoutes();
     }
+    
+    updateVisualization(currentVisualizationMode);
+}
+
+function resetTripFilter() {
+    selectedTripId = 'all';
+    const selectEl = document.getElementById('filter-trip');
+    if (selectEl) selectEl.value = 'all';
+    
+    const summaryEl = document.getElementById('trip-summary');
+    if (summaryEl) {
+        summaryEl.style.display = 'none';
+    }
+    
+    console.log('🔄 Filtro de viagem resetado');
+    
+    clearAllRoutes();
+    displayAllRoutes();
+    
+    updateVisualization(currentVisualizationMode);
+}
+
+function shouldShowStation(stationIndex) {
+    if (selectedTripId === 'all') return true;
+    
+    const trip = allTrips.find(t => t.id === selectedTripId);
+    if (!trip) return false;
+    
+    return trip.stationIndices.includes(stationIndex);
 }
 
 // ============================================
@@ -147,7 +471,6 @@ function createPopupContent(data) {
                     <div><b>Linha:</b> ${data.line}</div>
                     <div><b>Placa:</b> ${data.plate}</div>
                     <div><b>ID:</b> ${data.busId}</div>
-                    <div><b>Motorista:</b> ${data.driver}</div>
                     <div style="grid-column: 1 / -1;"><b>Direção:</b> ${data.direction}</div>
                 </div>
             </div>
@@ -188,8 +511,8 @@ function closeAllPopups() {
 // ============================================
 
 function createInteractiveMarker(latlng, stationData, index) {
-    const color = getMarkerColor(stationData, currentVisualizationMode);
-    const size = getMarkerSize(stationData.boarding, stationData.alighting);
+    const color = getMarkerColorByFlow(stationData, currentVisualizationMode);
+    const size = getMarkerSizeByFlow(stationData, currentVisualizationMode);
     
     const marker = L.circleMarker(latlng, {
         color: color,
@@ -305,7 +628,7 @@ function toggleClustering(enabled) {
 }
 
 // ============================================
-// FOCO POR ÍNDICE DO ARRAY (COORDENADAS)
+// FOCO POR ÍNDICE DO ARRAY
 // ============================================
 
 function focusStation(index) {
@@ -319,7 +642,7 @@ function focusStation(index) {
     
     markers.forEach(m => m.closePopup());
     
-    console.log(`🎯 Focando no índice ${index} - Estação ${station.stationNumber} [${station.latlng[0]}, ${station.latlng[1]}]`);
+    console.log(`🎯 Focando no índice ${index} - Estação ${station.stationNumber}`);
     
     if (clusteringEnabled && markerClusterGroup) {
         const isVisible = markerClusterGroup.hasLayer(marker);
@@ -329,9 +652,10 @@ function focusStation(index) {
                 setTimeout(() => marker.openPopup(), 300);
             });
         } else {
-            console.log('⚠️ Marcador não visível. Mudando para "Taxa de Ocupação"...');
-            document.getElementById('viz-mode').value = 'occupancy';
-            updateVisualization('occupancy');
+            console.log('⚠️ Marcador não visível. Mudando para modo "both"...');
+            const vizModeEl = document.getElementById('viz-mode');
+            if (vizModeEl) vizModeEl.value = 'both';
+            updateVisualization('both');
             
             setTimeout(() => {
                 if (markerClusterGroup.hasLayer(marker)) {
@@ -365,9 +689,11 @@ function updateTopBoarding() {
     const container = document.getElementById('top-boarding-list');
     if (!container) return;
     
-    const sortedByBoarding = allStationsData
+    const visibleStations = allStationsData
         .map((station, index) => ({ ...station, arrayIndex: index }))
-        .filter(station => station.boarding > 0)
+        .filter((station, index) => shouldShowStation(index) && station.boarding > 0);
+    
+    const sortedByBoarding = visibleStations
         .sort((a, b) => b.boarding - a.boarding)
         .slice(0, 5);
     
@@ -375,7 +701,7 @@ function updateTopBoarding() {
         container.innerHTML = `
             <div class="empty-state">
                 <div class="empty-state-icon">📭</div>
-                Nenhum embarque registrado
+                Nenhum embarque
             </div>
         `;
         return;
@@ -390,7 +716,7 @@ function updateTopBoarding() {
             <div class="ranking-item" onclick="focusStation(${station.arrayIndex})">
                 <div class="ranking-position ${positionClass}">${position}º</div>
                 <div class="ranking-info">
-                    <span class="ranking-station">🚏 Estação ${station.stationNumber}</span>
+                    <span class="ranking-station">🚏 Est. ${station.stationNumber}</span>
                     <span class="ranking-value">${station.alighting}↘️ | ${station.carried} a bordo</span>
                 </div>
                 <div class="ranking-badge">${station.boarding} ↗️</div>
@@ -399,16 +725,17 @@ function updateTopBoarding() {
     });
     
     container.innerHTML = html;
-    console.log(`📊 Top 5 Embarques atualizado`);
 }
 
 function updateTopAlighting() {
     const container = document.getElementById('top-alighting-list');
     if (!container) return;
     
-    const sortedByAlighting = allStationsData
+    const visibleStations = allStationsData
         .map((station, index) => ({ ...station, arrayIndex: index }))
-        .filter(station => station.alighting > 0)
+        .filter((station, index) => shouldShowStation(index) && station.alighting > 0);
+    
+    const sortedByAlighting = visibleStations
         .sort((a, b) => b.alighting - a.alighting)
         .slice(0, 5);
     
@@ -416,7 +743,7 @@ function updateTopAlighting() {
         container.innerHTML = `
             <div class="empty-state">
                 <div class="empty-state-icon">📭</div>
-                Nenhum desembarque registrado
+                Nenhum desembarque
             </div>
         `;
         return;
@@ -431,7 +758,7 @@ function updateTopAlighting() {
             <div class="ranking-item" onclick="focusStation(${station.arrayIndex})">
                 <div class="ranking-position ${positionClass}">${position}º</div>
                 <div class="ranking-info">
-                    <span class="ranking-station">🚏 Estação ${station.stationNumber}</span>
+                    <span class="ranking-station">🚏 Est. ${station.stationNumber}</span>
                     <span class="ranking-value">${station.boarding}↗️ | ${station.carried} a bordo</span>
                 </div>
                 <div class="ranking-badge">${station.alighting} ↘️</div>
@@ -440,22 +767,23 @@ function updateTopAlighting() {
     });
     
     container.innerHTML = html;
-    console.log(`📊 Top 5 Desembarques atualizado`);
 }
 
 function updateNoMovementStations() {
     const container = document.getElementById('no-movement-list');
     if (!container) return;
     
-    const noMovement = allStationsData
+    const visibleStations = allStationsData
         .map((station, index) => ({ ...station, arrayIndex: index }))
-        .filter(station => station.boarding === 0 && station.alighting === 0);
+        .filter((station, index) => shouldShowStation(index));
+    
+    const noMovement = visibleStations.filter(station => station.boarding === 0 && station.alighting === 0);
     
     if (noMovement.length === 0) {
         container.innerHTML = `
             <div class="empty-state">
                 <div class="empty-state-icon">✅</div>
-                Todas as estações têm movimento
+                Todas têm movimento
             </div>
         `;
         return;
@@ -465,17 +793,16 @@ function updateNoMovementStations() {
     noMovement.forEach(station => {
         html += `
             <div class="no-movement-item" onclick="focusStation(${station.arrayIndex})">
-                <strong>🚏 Estação ${station.stationNumber}</strong> - Sem movimento (${station.carried} a bordo)
+                <strong>🚏 Est. ${station.stationNumber}</strong> - Sem movimento (${station.carried} a bordo)
             </div>
         `;
     });
     
     container.innerHTML = html;
-    console.log(`📊 Estações sem movimento: ${noMovement.length}`);
 }
 
 // ============================================
-// ATUALIZAR VISUALIZAÇÃO
+// ATUALIZAR VISUALIZAÇÃO COM FILTROS
 // ============================================
 
 function updateVisualization(mode) {
@@ -484,20 +811,21 @@ function updateVisualization(mode) {
     
     markers.forEach(marker => map.removeLayer(marker));
     if (markerClusterGroup) markerClusterGroup.clearLayers();
-    if (polyline) {
-        map.removeLayer(polyline);
-        polyline = null;
-    }
     
     const visibleMarkers = [];
-    const visibleCoords = [];
     
     markers.forEach((marker, index) => {
         const stationData = allStationsData[index];
         
-        if (shouldShowMarker(stationData, mode)) {
-            const color = getMarkerColor(stationData, mode);
-            const size = getMarkerSize(stationData.boarding, stationData.alighting);
+        if (!shouldShowStation(index)) return;
+        
+        let show = true;
+        if (mode === 'boarding' && stationData.boarding === 0) show = false;
+        if (mode === 'alighting' && stationData.alighting === 0) show = false;
+        
+        if (show) {
+            const color = getMarkerColorByFlow(stationData, mode);
+            const size = getMarkerSizeByFlow(stationData, mode);
             
             marker.setStyle({
                 color: color,
@@ -508,7 +836,6 @@ function updateVisualization(mode) {
             });
             
             visibleMarkers.push(marker);
-            visibleCoords.push(stationData.latlng);
         }
     });
     
@@ -519,42 +846,38 @@ function updateVisualization(mode) {
         visibleMarkers.forEach(marker => marker.addTo(map));
     }
     
-    if (visibleCoords.length > 1) {
-        polyline = L.polyline(visibleCoords, {
-            color: '#1E90FF',
-            weight: 3,
-            opacity: 0.7
-        }).addTo(map);
-    }
-    
     updateLegend(mode);
     createStationsList();
     updateAdvancedStatistics();
     
-    document.getElementById('visible-count').textContent = visibleMarkers.length;
+    const visibleCountEl = document.getElementById('visible-count');
+    if (visibleCountEl) {
+        visibleCountEl.textContent = visibleMarkers.length;
+    }
     
     console.log(`✅ ${visibleMarkers.length} de ${markers.length} estações visíveis`);
 }
 
 function updateLegend(mode) {
     const legendContainer = document.getElementById('legend-container');
+    if (!legendContainer) return;
     
     let legendHTML = '';
     
     switch(mode) {
-        case 'occupancy':
+        case 'both':
             legendHTML = `
                 <div class="legend-item">
-                    <div class="legend-color" style="background-color: #4CAF50;"></div>
-                    <span>&lt; 70% - Confortável</span>
+                    <div class="legend-color" style="background-color: #2196F3;"></div>
+                    <span>🟦 Mais Embarques</span>
                 </div>
                 <div class="legend-item">
-                    <div class="legend-color" style="background-color: #FF9800;"></div>
-                    <span>70-100% - Moderado</span>
+                    <div class="legend-color" style="background-color: #9C27B0;"></div>
+                    <span>🟪 Equilibrado</span>
                 </div>
                 <div class="legend-item">
                     <div class="legend-color" style="background-color: #F44336;"></div>
-                    <span>&gt; 100% - Lotado</span>
+                    <span>🟥 Mais Desembarques</span>
                 </div>
             `;
             break;
@@ -592,6 +915,23 @@ function updateLegend(mode) {
                 </div>
             `;
             break;
+            
+        case 'occupancy':
+            legendHTML = `
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #4CAF50;"></div>
+                    <span>&lt; 70% - Confortável</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #FF9800;"></div>
+                    <span>70-100% - Moderado</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #F44336;"></div>
+                    <span>&gt; 100% - Lotado</span>
+                </div>
+            `;
+            break;
     }
     
     legendContainer.innerHTML = legendHTML;
@@ -609,13 +949,16 @@ function createStationsList() {
     let count = 0;
     
     allStationsData.forEach((station, index) => {
-        if (!shouldShowMarker(station, currentVisualizationMode)) return;
+        if (!shouldShowStation(index)) return;
+        
+        if (currentVisualizationMode === 'boarding' && station.boarding === 0) return;
+        if (currentVisualizationMode === 'alighting' && station.alighting === 0) return;
         
         count++;
         
         listHTML += `
             <div class="station-list-item" onclick="focusStation(${index})">
-                <b>🚏 Estação ${station.stationNumber}</b><br>
+                <b>🚏 Est. ${station.stationNumber}</b><br>
                 <span style="color: #2196F3;">${station.boarding}↗️</span> | 
                 <span style="color: #F44336;">${station.alighting}↘️</span> | 
                 <span style="color: #666;">${station.carried} a bordo</span>
@@ -624,18 +967,14 @@ function createStationsList() {
     });
     
     if (count === 0) {
-        listHTML = '<p style="text-align: center; color: #999; padding: 20px; font-size: 13px;">Nenhuma estação neste critério</p>';
+        listHTML = '<p style="text-align: center; color: #999; padding: 16px; font-size: 11px;">Nenhuma estação neste critério</p>';
     }
     
     listContainer.innerHTML = listHTML;
 }
 
 // ============================================
-// CARREGAMENTO DO CSV - CÁLCULO CORRETO
-// ============================================
-
-// ============================================
-// CARREGAMENTO DO CSV - CÁLCULO CORRETO DEFINITIVO
+// CARREGAMENTO DO CSV
 // ============================================
 
 Papa.parse('data.csv', {
@@ -661,10 +1000,9 @@ Papa.parse('data.csv', {
             const carried = parseNumber(row[11]);
             const occupancy = parseNumber(row[12]);
             
-            // Capturar passageiros iniciais da PRIMEIRA estação válida (valor direto de carried)
             if (firstStationIndex === -1) {
                 firstStationIndex = index;
-                initialPassengers = carried; // Passageiros que estavam no início
+                initialPassengers = carried;
             }
             
             const stationData = {
@@ -701,25 +1039,32 @@ Papa.parse('data.csv', {
             latlngs.push(latlng);
         });
         
-        // CÁLCULO CORRETO: Todos os passageiros únicos que usaram o ônibus
-        // Se ônibus começou vazio: total = embarques
-        // Se ônibus começou com passageiros: total = inicial + embarques
         const totalPassengers = initialPassengers + totalBoarding;
         
         initializeClusterGroup();
+        
+        identifyTrips();
+        populateTripFilter();
+        displayAllRoutes();
+        
         updateVisualization(currentVisualizationMode);
         
-        document.getElementById('point-count').textContent = markers.length;
-        document.getElementById('total-boarding').textContent = totalBoarding;
-        document.getElementById('total-alighting').textContent = totalAlighting;
-        document.getElementById('total-passengers').textContent = totalPassengers;
-        document.getElementById('avg-occupancy').textContent = markers.length > 0 ? Math.round(totalPassengers / markers.length) : 0;
+        const pointCountEl = document.getElementById('point-count');
+        const totalBoardingEl = document.getElementById('total-boarding');
+        const totalAlightingEl = document.getElementById('total-alighting');
+        const totalPassengersEl = document.getElementById('total-passengers');
+        const avgOccupancyEl = document.getElementById('avg-occupancy');
+        
+        if (pointCountEl) pointCountEl.textContent = markers.length;
+        if (totalBoardingEl) totalBoardingEl.textContent = totalBoarding;
+        if (totalAlightingEl) totalAlightingEl.textContent = totalAlighting;
+        if (totalPassengersEl) totalPassengersEl.textContent = totalPassengers;
+        if (avgOccupancyEl) avgOccupancyEl.textContent = markers.length > 0 ? Math.round(totalPassengers / markers.length) : 0;
         
         console.log(`✅ ${markers.length} estações carregadas!`);
-        console.log(`📊 Passageiros iniciais (já no ônibus): ${initialPassengers}`);
-        console.log(`📊 Total de embarques: ${totalBoarding}`);
-        console.log(`📊 Total de desembarques: ${totalAlighting}`);
-        console.log(`📊 Total passageiros transportados: ${totalPassengers} (${initialPassengers} + ${totalBoarding})`);
-        console.log(`📊 Média por estação: ${markers.length > 0 ? Math.round(totalPassengers / markers.length) : 0}`);
+        console.log(`📊 Passageiros iniciais: ${initialPassengers}`);
+        console.log(`📊 Total embarques: ${totalBoarding}`);
+        console.log(`📊 Total desembarques: ${totalAlighting}`);
+        console.log(`📊 Total transportados: ${totalPassengers} (${initialPassengers} + ${totalBoarding})`);
     }
 });
