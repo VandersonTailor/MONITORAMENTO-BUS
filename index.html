@@ -16,112 +16,287 @@
 <body>
     <div id="map"></div>
     
-    <!-- Controles -->
+    <!-- ============================================ -->
+    <!-- PAINEL DE CONTROLES EXPANDIDO -->
+    <!-- ============================================ -->
     <div class="view-controls">
-        <h3>🎛️ Controles</h3>
+        <div class="controls-header">
+            <h3>🎛️ Painel de Controle</h3>
+        </div>
         
-        <!-- Filtro Principal: Viagem -->
-        <div class="filter-section main-filter">
-            <h4>🚌 Selecionar Viagem</h4>
+        <!-- ============================================ -->
+        <!-- SEÇÃO 1: SELEÇÃO DE VIAGEM -->
+        <!-- ============================================ -->
+        <details class="control-section" open>
+            <summary class="section-title">🚌 Viagens</summary>
             
-            <label for="filter-trip">Viagem:</label>
-            <select id="filter-trip" onchange="applyTripFilter()">
-                <option value="all">📋 Todas as Viagens</option>
-            </select>
-            
-            <!-- Resumo da Viagem Selecionada -->
-            <div id="trip-summary" class="trip-summary" style="display: none;">
-                <div class="summary-header">
-                    <h5 id="summary-title">📊 Resumo da Viagem</h5>
-                </div>
+            <div class="section-content">
+                <label for="filter-trip">Selecionar Viagem:</label>
+                <select id="filter-trip" onchange="applyTripFilter()">
+                    <option value="all">📋 Todas as Viagens</option>
+                </select>
                 
-                <div class="summary-stats">
-                    <div class="summary-stat-card embarque">
-                        <div class="stat-icon">↗️</div>
-                        <div class="stat-value" id="summary-boarding">0</div>
-                        <div class="stat-label">Embarques</div>
+                <button class="action-btn reset-btn" onclick="resetTripFilter()">
+                    🔄 Resetar Filtro
+                </button>
+            </div>
+        </details>
+        
+        <!-- ============================================ -->
+        <!-- SEÇÃO 2: MÉTRICAS DA PARADA 31 -->
+        <!-- ============================================ -->
+        <details class="control-section" open>
+            <summary class="section-title">📍 Métricas Parada 31</summary>
+            
+            <div class="section-content">
+                <!-- Métrica 1: Mínima (Código 04) -->
+                <div class="metric-card-control metric-ida">
+                    <div class="metric-header">
+                        <span class="metric-icon-small">🟢</span>
+                        <span class="metric-title-small">Mínima (04)</span>
                     </div>
-                    
-                    <div class="summary-stat-card desembarque">
-                        <div class="stat-icon">↘️</div>
-                        <div class="stat-value" id="summary-alighting">0</div>
-                        <div class="stat-label">Desembarques</div>
-                    </div>
-                    
-                    <div class="summary-stat-card passageiros">
-                        <div class="stat-icon">👥</div>
-                        <div class="stat-value" id="summary-passengers">0</div>
-                        <div class="stat-label">Passageiros</div>
-                    </div>
-                    
-                    <div class="summary-stat-card estacoes">
-                        <div class="stat-icon">🚏</div>
-                        <div class="stat-value" id="summary-stations">0</div>
-                        <div class="stat-label">Estações</div>
+                    <div class="metric-body">
+                        <div class="metric-value-large" id="metric-minima-ida">0</div>
+                        <div class="metric-desc">Até parada 31</div>
                     </div>
                 </div>
                 
-                <div class="summary-details">
-                    <div class="summary-detail-row">
-                        <span class="detail-label">🚗 Placa:</span>
-                        <span class="detail-value" id="summary-plate">-</span>
+                <!-- Métrica 2: Máxima (Código 01) -->
+                <div class="metric-card-control metric-divisa">
+                    <div class="metric-header">
+                        <span class="metric-icon-small">🔴</span>
+                        <span class="metric-title-small">Máxima (01)</span>
                     </div>
-                    <div class="summary-detail-row">
-                        <span class="detail-label">➡️ Direção:</span>
-                        <span class="detail-value" id="summary-direction">-</span>
+                    <div class="metric-body">
+                        <div class="metric-value-large" id="metric-divisa">0</div>
+                        <div class="metric-desc">Até o final da linha</div>
                     </div>
-                    <div class="summary-detail-row">
-                        <span class="detail-label">⏰ Período:</span>
-                        <span class="detail-value" id="summary-period">-</span>
+                </div>
+                
+                <!-- Métrica 3: Divisa (Código 23) -->
+                <div class="metric-card-control metric-volta">
+                    <div class="metric-header">
+                        <span class="metric-icon-small">🟡</span>
+                        <span class="metric-title-small">Divisa (23)</span>
                     </div>
-                    <div class="summary-detail-row">
-                        <span class="detail-label">📊 Média/Estação:</span>
-                        <span class="detail-value" id="summary-avg">-</span>
+                    <div class="metric-body">
+                        <div class="metric-value-large" id="metric-minima-volta">0</div>
+                        <div class="metric-desc">Até P31 na Volta</div>
+                    </div>
+                </div>
+                
+                <!-- Métrica 4: Isentos (Código 98) -->
+                <div class="metric-card-control metric-isento">
+                    <div class="metric-header">
+                        <span class="metric-icon-small">⚪</span>
+                        <span class="metric-title-small">Isentos (98)</span>
+                    </div>
+                    <div class="metric-body">
+                        <div class="metric-value-large" id="metric-isentos">0</div>
+                        <div class="metric-desc">Total de isentos</div>
                     </div>
                 </div>
             </div>
+        </details>
+        
+        <!-- ============================================ -->
+        <!-- SEÇÃO 3: FORMAS DE PAGAMENTO -->
+        <!-- ============================================ -->
+        <details class="control-section">
+            <summary class="section-title">💳 Formas de Pagamento</summary>
             
-            <button class="reset-filters-btn" onclick="resetTripFilter()">
-                🔄 Ver Todas as Viagens
-            </button>
-        </div>
+            <div class="section-content">
+                <label>Filtrar por Pagamento:</label>
+                
+                <label class="checkbox-label">
+                    <input type="checkbox" id="payment-checkbox-cash" onchange="togglePaymentFilter('cash')" checked>
+                    💵 Dinheiro
+                </label>
+                
+                <label class="checkbox-label">
+                    <input type="checkbox" id="payment-checkbox-card" onchange="togglePaymentFilter('card')" checked>
+                    💳 Cartão
+                </label>
+                
+                <!-- Resumo de Pagamentos -->
+                <div class="payment-summary" style="margin-top: 12px; padding: 10px; background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1)); border-radius: 8px;">
+                    <div class="payment-summary-item">
+                        <span class="payment-label">💵 Dinheiro:</span>
+                        <span class="payment-value">
+                            <strong id="payment-cash-total">0</strong> embarques
+                            (<span id="payment-cash-revenue">R$ 0,00</span>)
+                        </span>
+                    </div>
+                    <div class="payment-summary-item" style="margin-top: 8px;">
+                        <span class="payment-label">💳 Cartão:</span>
+                        <span class="payment-value">
+                            <strong id="payment-card-total">0</strong> embarques
+                            (<span id="payment-card-revenue">R$ 0,00</span>)
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </details>
         
-        <hr style="border: none; border-top: 1px solid rgba(255,255,255,0.2); margin: 20px 0;">
+        <!-- ============================================ -->
+        <!-- SEÇÃO 4: TIPOS DE TARIFA -->
+        <!-- ============================================ -->
+        <details class="control-section">
+            <summary class="section-title">🎫 Tipos de Tarifa</summary>
+            
+            <div class="section-content">
+                <label>Filtrar por Tarifa:</label>
+                
+                <label class="checkbox-label">
+                    <input type="checkbox" id="tariff-checkbox-23" onchange="toggleTariffFilter('23')" checked>
+                    🟡 Divisa (R$ 5,00)
+                </label>
+                
+                <label class="checkbox-label">
+                    <input type="checkbox" id="tariff-checkbox-01" onchange="toggleTariffFilter('01')" checked>
+                    🔴 Máxima (R$ 10,30)
+                </label>
+                
+                <label class="checkbox-label">
+                    <input type="checkbox" id="tariff-checkbox-02" onchange="toggleTariffFilter('02')" checked>
+                    🔵 Monte Alegre (R$ 8,50)
+                </label>
+                
+                <label class="checkbox-label">
+                    <input type="checkbox" id="tariff-checkbox-03" onchange="toggleTariffFilter('03')" checked>
+                    🟢 Figueira (R$ 7,70)
+                </label>
+                
+                <label class="checkbox-label">
+                    <input type="checkbox" id="tariff-checkbox-08" onchange="toggleTariffFilter('08')" checked>
+                    🟣 Capororoca (R$ 6,75)
+                </label>
+                
+                <label class="checkbox-label">
+                    <input type="checkbox" id="tariff-checkbox-04" onchange="toggleTariffFilter('04')" checked>
+                    🟢 Mínima (R$ 4,80)
+                </label>
+                
+                <label class="checkbox-label">
+                    <input type="checkbox" id="tariff-checkbox-98" onchange="toggleTariffFilter('98')" checked>
+                    ⚪ Isento (R$ 0,00)
+                </label>
+            </div>
+        </details>
         
-        <!-- Modo de Visualização -->
-        <label for="viz-mode">🎨 Modo de Visualização</label>
-        <select id="viz-mode" onchange="updateVisualization(this.value)">
-            <option value="both">📊 Embarques + Desembarques</option>
-            <option value="boarding">🟦 Apenas Embarques</option>
-            <option value="alighting">🟥 Apenas Desembarques</option>
-            <option value="occupancy">📈 Taxa de Ocupação</option>
-        </select>
-        
-        <label style="margin-top: 16px;">
-            <input type="checkbox" id="cluster-toggle" onchange="toggleClustering(this.checked)" checked>
-            Agrupar Pontos Próximos
-        </label>
+        <!-- ============================================ -->
+        <!-- SEÇÃO 5: AÇÕES RÁPIDAS -->
+        <!-- ============================================ -->
+        <details class="control-section">
+            <summary class="section-title">⚡ Ações Rápidas</summary>
+            
+            <div class="section-content">
+                <button class="action-btn export-btn" onclick="exportData()">
+                    📥 Exportar Dados
+                </button>
+                <button class="action-btn refresh-btn" onclick="location.reload()">
+                    🔄 Recarregar Sistema
+                </button>
+                <button class="action-btn reset-all-btn" onclick="resetAllFilters()">
+                    🗑️ Limpar Todos os Filtros
+                </button>
+            </div>
+        </details>
     </div>
     
-    <!-- Painel Premium com Estatísticas Avançadas -->
+    <!-- ============================================ -->
+    <!-- PAINEL DE INFORMAÇÕES (DIREITA) -->
+    <!-- ============================================ -->
     <div class="info-panel">
-        <!-- LEGENDA -->
-        <h3>📊 Legenda</h3>
-        <div id="legend-container"></div>
+        <!-- ============================================ -->
+        <!-- ✅ RESUMO DA VIAGEM (NO TOPO DO PAINEL) -->
+        <!-- ============================================ -->
+        <div id="trip-summary" class="legend-section" style="display: none;">
+            <h3>📊 Resumo da Viagem</h3>
+            
+            <div class="summary-grid-compact">
+                <!-- Card 1: Embarques -->
+                <div class="summary-card-compact summary-boarding">
+                    <div class="summary-icon-compact">↗️</div>
+                    <div class="summary-value-compact" id="summary-boarding">0</div>
+                    <div class="summary-label-compact">Embarques</div>
+                </div>
+                
+                <!-- Card 2: Desembarques -->
+                <div class="summary-card-compact summary-alighting">
+                    <div class="summary-icon-compact">↘️</div>
+                    <div class="summary-value-compact" id="summary-alighting">0</div>
+                    <div class="summary-label-compact">Desembarques</div>
+                </div>
+                
+                <!-- Card 3: Passageiros -->
+                <div class="summary-card-compact summary-passengers">
+                    <div class="summary-icon-compact">👥</div>
+                    <div class="summary-value-compact" id="summary-passengers">0</div>
+                    <div class="summary-label-compact">Passageiros</div>
+                </div>
+                
+                <!-- Card 4: Estações -->
+                <div class="summary-card-compact summary-stations">
+                    <div class="summary-icon-compact">🚏</div>
+                    <div class="summary-value-compact" id="summary-stations">0</div>
+                    <div class="summary-label-compact">Estações</div>
+                </div>
+            </div>
+            
+           <!-- Detalhes da viagem -->
+<div class="trip-details-compact">
+    <div class="detail-row-compact">
+        <span class="detail-icon-compact">🚗</span>
+        <span class="detail-label-compact">Placa:</span>
+        <span class="detail-value-compact" id="summary-plate">-</span>
+    </div>
+    
+    <div class="detail-row-compact">
+        <span class="detail-icon-compact">➡️</span>
+        <span class="detail-label-compact">Direção:</span>
+        <span class="detail-value-compact" id="summary-direction">-</span>
+    </div>
+    
+    <div class="detail-row-compact">
+        <span class="detail-icon-compact">⏰</span>
+        <span class="detail-label-compact">Período:</span>
+        <span class="detail-value-compact" id="summary-period">-</span>
+    </div>
+    
+    <div class="detail-row-compact">
+        <span class="detail-icon-compact">📊</span>
+        <span class="detail-label-compact">Média/Estação:</span>
+        <span class="detail-value-compact" id="summary-average">0</span>
+    </div>
+</div>
+
+<!-- ✅ NOVA SEÇÃO: RESUMO DAS PORTAS -->
+<div class="doors-summary-compact">
+    <h4 style="margin: 0 0 10px 0; font-size: 13px; color: #666; display: flex; align-items: center; gap: 6px;">
+        <span>🚪</span> Movimentação por Porta
+    </h4>
+    <div class="doors-grid-compact" id="summary-doors">
+        <!-- Será preenchido dinamicamente -->
+    </div>
+</div>
         
+        <!-- ============================================ -->
         <!-- ESTATÍSTICAS GERAIS -->
+        <!-- ============================================ -->
         <div class="legend-section">
             <h4>📈 Estatísticas Gerais</h4>
             <div class="stats-box">
                 <strong id="visible-count">0</strong> de <strong id="point-count">0</strong> visíveis<br>
                 <strong id="total-boarding">0</strong> embarques totais<br>
                 <strong id="total-alighting">0</strong> desembarques totais<br>
-                <strong id="total-passengers">0</strong> passageiros transportados<br>
                 <strong id="avg-occupancy">0</strong> média/estação
             </div>
         </div>
         
+        <!-- ============================================ -->
         <!-- TOP 5 EMBARQUES -->
+        <!-- ============================================ -->
         <div class="legend-section">
             <h4>🔝 Top 5 Embarques</h4>
             <div id="top-boarding-list" class="ranking-list">
@@ -132,7 +307,9 @@
             </div>
         </div>
         
+        <!-- ============================================ -->
         <!-- TOP 5 DESEMBARQUES -->
+        <!-- ============================================ -->
         <div class="legend-section">
             <h4>🔝 Top 5 Desembarques</h4>
             <div id="top-alighting-list" class="ranking-list">
@@ -143,7 +320,9 @@
             </div>
         </div>
         
+        <!-- ============================================ -->
         <!-- ESTAÇÕES SEM MOVIMENTO -->
+        <!-- ============================================ -->
         <div class="legend-section">
             <h4>⚠️ Sem Movimento</h4>
             <div id="no-movement-list" class="ranking-list">
@@ -154,7 +333,9 @@
             </div>
         </div>
         
+        <!-- ============================================ -->
         <!-- TODAS AS ESTAÇÕES -->
+        <!-- ============================================ -->
         <div class="legend-section">
             <h4>🚏 Todas as Estações</h4>
             <div id="stations-list">
@@ -166,7 +347,9 @@
         </div>
     </div>
 
-    <!-- Scripts -->
+    <!-- ============================================ -->
+    <!-- SCRIPTS -->
+    <!-- ============================================ -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
