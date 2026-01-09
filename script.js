@@ -89,17 +89,11 @@ function getMarkerSize(boarding, alighting) {
 function shouldShowMarker(stationData, mode) {
     switch(mode) {
         case 'occupancy':
-            // Mostra TODOS
             return true;
-            
         case 'boarding':
-            // Mostra APENAS com embarques
             return stationData.boarding > 0;
-            
         case 'alighting':
-            // Mostra APENAS com desembarques
             return stationData.alighting > 0;
-            
         default:
             return true;
     }
@@ -210,9 +204,9 @@ function createInteractiveMarker(latlng, stationData, index) {
     const popupContent = createPopupContent(stationData);
     
     marker.bindPopup(popupContent, { 
-        maxWidth: 400,
-        minWidth: 300,
-        maxHeight: 500,
+        maxWidth: 500,
+        minWidth: 480,
+        maxHeight: 650,
         closeButton: true,
         autoClose: true,
         closeOnClick: false,
@@ -311,14 +305,183 @@ function toggleClustering(enabled) {
 }
 
 // ============================================
-// ATUALIZAR VISUALIZAÇÃO (COM FILTRO AUTOMÁTICO)
+// FOCO POR ÍNDICE DO ARRAY (COORDENADAS)
+// ============================================
+
+function focusStation(index) {
+    const marker = markers[index];
+    const station = allStationsData[index];
+    
+    if (!marker || !station) {
+        console.error('❌ Índice inválido:', index);
+        return;
+    }
+    
+    markers.forEach(m => m.closePopup());
+    
+    console.log(`🎯 Focando no índice ${index} - Estação ${station.stationNumber} [${station.latlng[0]}, ${station.latlng[1]}]`);
+    
+    if (clusteringEnabled && markerClusterGroup) {
+        const isVisible = markerClusterGroup.hasLayer(marker);
+        
+        if (isVisible) {
+            markerClusterGroup.zoomToShowLayer(marker, function() {
+                setTimeout(() => marker.openPopup(), 300);
+            });
+        } else {
+            console.log('⚠️ Marcador não visível. Mudando para "Taxa de Ocupação"...');
+            document.getElementById('viz-mode').value = 'occupancy';
+            updateVisualization('occupancy');
+            
+            setTimeout(() => {
+                if (markerClusterGroup.hasLayer(marker)) {
+                    markerClusterGroup.zoomToShowLayer(marker, function() {
+                        setTimeout(() => marker.openPopup(), 300);
+                    });
+                }
+            }, 500);
+        }
+    } else {
+        map.setView(station.latlng, 18, {
+            animate: true,
+            duration: 1,
+            easeLinearity: 0.5
+        });
+        setTimeout(() => marker.openPopup(), 600);
+    }
+}
+
+// ============================================
+// ESTATÍSTICAS AVANÇADAS
+// ============================================
+
+function updateAdvancedStatistics() {
+    updateTopBoarding();
+    updateTopAlighting();
+    updateNoMovementStations();
+}
+
+function updateTopBoarding() {
+    const container = document.getElementById('top-boarding-list');
+    if (!container) return;
+    
+    const sortedByBoarding = allStationsData
+        .map((station, index) => ({ ...station, arrayIndex: index }))
+        .filter(station => station.boarding > 0)
+        .sort((a, b) => b.boarding - a.boarding)
+        .slice(0, 5);
+    
+    if (sortedByBoarding.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-state-icon">📭</div>
+                Nenhum embarque registrado
+            </div>
+        `;
+        return;
+    }
+    
+    let html = '';
+    sortedByBoarding.forEach((station, idx) => {
+        const position = idx + 1;
+        const positionClass = position === 1 ? 'gold' : position === 2 ? 'silver' : position === 3 ? 'bronze' : 'default';
+        
+        html += `
+            <div class="ranking-item" onclick="focusStation(${station.arrayIndex})">
+                <div class="ranking-position ${positionClass}">${position}º</div>
+                <div class="ranking-info">
+                    <span class="ranking-station">🚏 Estação ${station.stationNumber}</span>
+                    <span class="ranking-value">${station.alighting}↘️ | ${station.carried} a bordo</span>
+                </div>
+                <div class="ranking-badge">${station.boarding} ↗️</div>
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html;
+    console.log(`📊 Top 5 Embarques atualizado`);
+}
+
+function updateTopAlighting() {
+    const container = document.getElementById('top-alighting-list');
+    if (!container) return;
+    
+    const sortedByAlighting = allStationsData
+        .map((station, index) => ({ ...station, arrayIndex: index }))
+        .filter(station => station.alighting > 0)
+        .sort((a, b) => b.alighting - a.alighting)
+        .slice(0, 5);
+    
+    if (sortedByAlighting.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-state-icon">📭</div>
+                Nenhum desembarque registrado
+            </div>
+        `;
+        return;
+    }
+    
+    let html = '';
+    sortedByAlighting.forEach((station, idx) => {
+        const position = idx + 1;
+        const positionClass = position === 1 ? 'gold' : position === 2 ? 'silver' : position === 3 ? 'bronze' : 'default';
+        
+        html += `
+            <div class="ranking-item" onclick="focusStation(${station.arrayIndex})">
+                <div class="ranking-position ${positionClass}">${position}º</div>
+                <div class="ranking-info">
+                    <span class="ranking-station">🚏 Estação ${station.stationNumber}</span>
+                    <span class="ranking-value">${station.boarding}↗️ | ${station.carried} a bordo</span>
+                </div>
+                <div class="ranking-badge">${station.alighting} ↘️</div>
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html;
+    console.log(`📊 Top 5 Desembarques atualizado`);
+}
+
+function updateNoMovementStations() {
+    const container = document.getElementById('no-movement-list');
+    if (!container) return;
+    
+    const noMovement = allStationsData
+        .map((station, index) => ({ ...station, arrayIndex: index }))
+        .filter(station => station.boarding === 0 && station.alighting === 0);
+    
+    if (noMovement.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-state-icon">✅</div>
+                Todas as estações têm movimento
+            </div>
+        `;
+        return;
+    }
+    
+    let html = '';
+    noMovement.forEach(station => {
+        html += `
+            <div class="no-movement-item" onclick="focusStation(${station.arrayIndex})">
+                <strong>🚏 Estação ${station.stationNumber}</strong> - Sem movimento (${station.carried} a bordo)
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html;
+    console.log(`📊 Estações sem movimento: ${noMovement.length}`);
+}
+
+// ============================================
+// ATUALIZAR VISUALIZAÇÃO
 // ============================================
 
 function updateVisualization(mode) {
     console.log(`🎨 Visualização: ${mode}`);
     currentVisualizationMode = mode;
     
-    // Remover todos os marcadores
     markers.forEach(marker => map.removeLayer(marker));
     if (markerClusterGroup) markerClusterGroup.clearLayers();
     if (polyline) {
@@ -326,16 +489,13 @@ function updateVisualization(mode) {
         polyline = null;
     }
     
-    // Filtrar e atualizar marcadores
     const visibleMarkers = [];
     const visibleCoords = [];
     
     markers.forEach((marker, index) => {
         const stationData = allStationsData[index];
         
-        // FILTRO AUTOMÁTICO: só mostra se passar no critério
         if (shouldShowMarker(stationData, mode)) {
-            // Atualizar cor
             const color = getMarkerColor(stationData, mode);
             const size = getMarkerSize(stationData.boarding, stationData.alighting);
             
@@ -352,7 +512,6 @@ function updateVisualization(mode) {
         }
     });
     
-    // Adicionar ao mapa
     if (clusteringEnabled) {
         if (!markerClusterGroup) initializeClusterGroup();
         markerClusterGroup.addLayers(visibleMarkers);
@@ -360,7 +519,6 @@ function updateVisualization(mode) {
         visibleMarkers.forEach(marker => marker.addTo(map));
     }
     
-    // Linha do trajeto
     if (visibleCoords.length > 1) {
         polyline = L.polyline(visibleCoords, {
             color: '#1E90FF',
@@ -369,11 +527,10 @@ function updateVisualization(mode) {
         }).addTo(map);
     }
     
-    // Atualizar legenda e lista
     updateLegend(mode);
     createStationsList();
+    updateAdvancedStatistics();
     
-    // Atualizar contador
     document.getElementById('visible-count').textContent = visibleMarkers.length;
     
     console.log(`✅ ${visibleMarkers.length} de ${markers.length} estações visíveis`);
@@ -448,25 +605,16 @@ function createStationsList() {
     const listContainer = document.getElementById('stations-list');
     if (!listContainer) return;
     
-    let listHTML = '<div style="max-height: 300px; overflow-y: auto; font-size: 12px;">';
-    
+    let listHTML = '';
     let count = 0;
+    
     allStationsData.forEach((station, index) => {
         if (!shouldShowMarker(station, currentVisualizationMode)) return;
         
         count++;
-        const color = getMarkerColor(station, currentVisualizationMode);
         
         listHTML += `
-            <div class="station-list-item" onclick="focusStation(${index})" style="
-                padding: 8px;
-                margin: 5px 0;
-                background: white;
-                border-left: 4px solid ${color};
-                border-radius: 4px;
-                cursor: pointer;
-                transition: all 0.2s;
-            " onmouseover="this.style.background='#f0f0f0'" onmouseout="this.style.background='white'">
+            <div class="station-list-item" onclick="focusStation(${index})">
                 <b>🚏 Estação ${station.stationNumber}</b><br>
                 <span style="color: #2196F3;">${station.boarding}↗️</span> | 
                 <span style="color: #F44336;">${station.alighting}↘️</span> | 
@@ -476,37 +624,18 @@ function createStationsList() {
     });
     
     if (count === 0) {
-        listHTML += '<p style="text-align: center; color: #999; padding: 20px;">Nenhuma estação neste critério</p>';
+        listHTML = '<p style="text-align: center; color: #999; padding: 20px; font-size: 13px;">Nenhuma estação neste critério</p>';
     }
     
-    listHTML += '</div>';
     listContainer.innerHTML = listHTML;
 }
 
-function focusStation(index) {
-    const marker = markers[index];
-    const station = allStationsData[index];
-    
-    markers.forEach(m => m.closePopup());
-    
-    if (clusteringEnabled && markerClusterGroup) {
-        markerClusterGroup.zoomToShowLayer(marker, function() {
-            marker.openPopup();
-        });
-    } else {
-        map.setView(station.latlng, 17, {
-            animate: true,
-            duration: 0.8
-        });
-        
-        setTimeout(() => {
-            marker.openPopup();
-        }, 500);
-    }
-}
+// ============================================
+// CARREGAMENTO DO CSV - CÁLCULO CORRETO
+// ============================================
 
 // ============================================
-// CARREGAMENTO DO CSV
+// CARREGAMENTO DO CSV - CÁLCULO CORRETO DEFINITIVO
 // ============================================
 
 Papa.parse('data.csv', {
@@ -520,7 +649,8 @@ Papa.parse('data.csv', {
         
         let totalBoarding = 0;
         let totalAlighting = 0;
-        let totalPassengers = 0;
+        let initialPassengers = 0;
+        let firstStationIndex = -1;
         
         data.forEach((row, index) => {
             const latlng = parseLatLng(row[6]);
@@ -531,13 +661,19 @@ Papa.parse('data.csv', {
             const carried = parseNumber(row[11]);
             const occupancy = parseNumber(row[12]);
             
+            // Capturar passageiros iniciais da PRIMEIRA estação válida (valor direto de carried)
+            if (firstStationIndex === -1) {
+                firstStationIndex = index;
+                initialPassengers = carried; // Passageiros que estavam no início
+            }
+            
             const stationData = {
                 line: row[0] || 'N/A',
                 plate: row[1] || 'N/A',
                 busId: row[2] || 'N/A',
                 driver: row[3] || 'Não informado',
                 direction: row[4] || 'N/A',
-                stationNumber: row[5] || index + 1,
+                stationNumber: row[5] || (index + 1),
                 latlng: latlng,
                 time1: row[7] || 'N/A',
                 time2: row[8] || 'N/A',
@@ -559,12 +695,16 @@ Papa.parse('data.csv', {
             
             totalBoarding += boarding;
             totalAlighting += alighting;
-            totalPassengers += carried;
             
             const marker = createInteractiveMarker(latlng, stationData, allStationsData.length - 1);
             markers.push(marker);
             latlngs.push(latlng);
         });
+        
+        // CÁLCULO CORRETO: Todos os passageiros únicos que usaram o ônibus
+        // Se ônibus começou vazio: total = embarques
+        // Se ônibus começou com passageiros: total = inicial + embarques
+        const totalPassengers = initialPassengers + totalBoarding;
         
         initializeClusterGroup();
         updateVisualization(currentVisualizationMode);
@@ -572,8 +712,14 @@ Papa.parse('data.csv', {
         document.getElementById('point-count').textContent = markers.length;
         document.getElementById('total-boarding').textContent = totalBoarding;
         document.getElementById('total-alighting').textContent = totalAlighting;
-        document.getElementById('avg-occupancy').textContent = Math.round(totalPassengers / markers.length);
+        document.getElementById('total-passengers').textContent = totalPassengers;
+        document.getElementById('avg-occupancy').textContent = markers.length > 0 ? Math.round(totalPassengers / markers.length) : 0;
         
         console.log(`✅ ${markers.length} estações carregadas!`);
+        console.log(`📊 Passageiros iniciais (já no ônibus): ${initialPassengers}`);
+        console.log(`📊 Total de embarques: ${totalBoarding}`);
+        console.log(`📊 Total de desembarques: ${totalAlighting}`);
+        console.log(`📊 Total passageiros transportados: ${totalPassengers} (${initialPassengers} + ${totalBoarding})`);
+        console.log(`📊 Média por estação: ${markers.length > 0 ? Math.round(totalPassengers / markers.length) : 0}`);
     }
 });

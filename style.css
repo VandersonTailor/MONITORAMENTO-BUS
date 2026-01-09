@@ -977,3 +977,182 @@ body {
         min-width: 95vw;
     }
 }
+/* 
+   RANKINGS E ESTATÍSTICAS AVANÇADAS
+    */
+
+.ranking-list {
+    max-height: 250px;
+    overflow-y: auto;
+    padding-right: 6px;
+}
+
+.ranking-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.ranking-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.ranking-list::-webkit-scrollbar-thumb {
+    background: var(--primary);
+    border-radius: 10px;
+}
+
+.ranking-item {
+    padding: 10px 12px;
+    margin: 8px 0;
+    background: white;
+    border-radius: 12px;
+    transition: var(--transition-smooth);
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    position: relative;
+    overflow: hidden;
+    cursor: pointer;
+}
+
+.ranking-item::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: var(--primary);
+    transition: var(--transition-smooth);
+}
+
+.ranking-item:hover {
+    transform: translateX(6px) scale(1.02);
+    box-shadow: var(--shadow-md);
+    background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+}
+
+.ranking-item:hover::before {
+    width: 100%;
+    opacity: 0.08;
+}
+
+.ranking-position {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 14px;
+    color: white;
+    flex-shrink: 0;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.ranking-position.gold {
+    background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
+}
+
+.ranking-position.silver {
+    background: linear-gradient(135deg, #C0C0C0 0%, #808080 100%);
+}
+
+.ranking-position.bronze {
+    background: linear-gradient(135deg, #CD7F32 0%, #8B4513 100%);
+}
+
+.ranking-position.default {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.ranking-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.ranking-station {
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--dark);
+}
+
+.ranking-value {
+    font-size: 11px;
+    color: #6c757d;
+    font-weight: 500;
+}
+
+.ranking-badge {
+    padding: 4px 10px;
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.12), rgba(118, 75, 162, 0.12));
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #667eea;
+    flex-shrink: 0;
+}
+
+/* Estações sem movimento */
+.no-movement-item {
+    padding: 8px 12px;
+    margin: 6px 0;
+    background: linear-gradient(135deg, rgba(255, 107, 107, 0.08), rgba(238, 90, 111, 0.08));
+    border-radius: 10px;
+    border-left: 3px solid #ff6b6b;
+    font-size: 12px;
+    color: #6c757d;
+    transition: var(--transition-smooth);
+    cursor: pointer;
+}
+
+.no-movement-item:hover {
+    background: linear-gradient(135deg, rgba(255, 107, 107, 0.12), rgba(238, 90, 111, 0.12));
+    transform: translateX(4px);
+}
+
+.no-movement-item strong {
+    color: var(--dark);
+    font-weight: 600;
+}
+
+/* Badge de passageiros */
+.stats-box strong#total-passengers {
+    background: var(--success);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* Empty state */
+.empty-state {
+    text-align: center;
+    padding: 20px;
+    color: #adb5bd;
+    font-size: 13px;
+}
+
+.empty-state-icon {
+    font-size: 32px;
+    margin-bottom: 8px;
+}
+/* Badges nos rankings */
+.ranking-badge {
+    padding: 6px 12px;
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.15), rgba(118, 75, 162, 0.15));
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #667eea;
+    flex-shrink: 0;
+    white-space: nowrap;
+    transition: var(--transition-smooth);
+}
+
+.ranking-item:hover .ranking-badge {
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.25), rgba(118, 75, 162, 0.25));
+    transform: scale(1.05);
+}

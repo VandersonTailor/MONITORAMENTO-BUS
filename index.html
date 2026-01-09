@@ -31,24 +31,66 @@
         </label>
     </div>
     
-    <!-- Painel Premium -->
+    <!-- Painel Premium com Estatísticas Avançadas -->
     <div class="info-panel">
+        <!-- LEGENDA -->
         <h3>📊 Legenda</h3>
         <div id="legend-container"></div>
         
+        <!-- ESTATÍSTICAS GERAIS -->
         <div class="legend-section">
-            <h4>📈 Estatísticas</h4>
+            <h4>📈 Estatísticas Gerais</h4>
             <div class="stats-box">
                 <strong id="visible-count">0</strong> de <strong id="point-count">0</strong> visíveis<br>
-                <strong id="total-boarding">0</strong> embarques<br>
-                <strong id="total-alighting">0</strong> desembarques<br>
+                <strong id="total-boarding">0</strong> embarques totais<br>
+                <strong id="total-alighting">0</strong> desembarques totais<br>
+                <strong id="total-passengers">0</strong> passageiros transportados<br>
                 <strong id="avg-occupancy">0</strong> média/estação
             </div>
         </div>
         
+        <!-- TOP 5 EMBARQUES -->
         <div class="legend-section">
-            <h4>🚏 Estações</h4>
-            <div id="stations-list"></div>
+            <h4>🔝 Top 5 Embarques</h4>
+            <div id="top-boarding-list" class="ranking-list">
+                <div class="empty-state">
+                    <div class="empty-state-icon">⏳</div>
+                    Carregando dados...
+                </div>
+            </div>
+        </div>
+        
+        <!-- TOP 5 DESEMBARQUES -->
+        <div class="legend-section">
+            <h4>🔝 Top 5 Desembarques</h4>
+            <div id="top-alighting-list" class="ranking-list">
+                <div class="empty-state">
+                    <div class="empty-state-icon">⏳</div>
+                    Carregando dados...
+                </div>
+            </div>
+        </div>
+        
+        <!-- ESTAÇÕES SEM MOVIMENTO -->
+        <div class="legend-section">
+            <h4>⚠️ Sem Movimento</h4>
+            <div id="no-movement-list" class="ranking-list">
+                <div class="empty-state">
+                    <div class="empty-state-icon">⏳</div>
+                    Carregando dados...
+                </div>
+            </div>
+        </div>
+        
+        <!-- TODAS AS ESTAÇÕES -->
+        <div class="legend-section">
+            <h4>🚏 Todas as Estações</h4>
+            <div id="stations-list">
+                <div class="empty-state">
+                    <div class="empty-state-icon">⏳</div>
+                    Carregando estações...
+                </div>
+            </div>
         </div>
     </div>
 
