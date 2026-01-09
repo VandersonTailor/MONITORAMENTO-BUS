@@ -37,28 +37,28 @@ const tariffTypes = {
 // DADOS DE MOVIMENTAÇÃO (EXTRAÍDOS DA IMAGEM)
 // 
 const tariffMovementData = {
-    'viagem-1': { // Linha 6IP (IDA)
+    'viagem-1': {
         '23': { cash: 0, card: 0 },
         '01': { cash: 6, card: 38 },
         '03': { cash: 5, card: 4 },
         '04': { cash: 6, card: 7 },
         '98': { cash: 0, card: 11 }
     },
-    'viagem-2': { // Linha 1BCSOR (VOLTA)
+    'viagem-2': {
         '23': { cash: 1, card: 0 },
         '01': { cash: 3, card: 9 },
         '03': { cash: 0, card: 0 },
         '04': { cash: 10, card: 19 },
         '98': { cash: 0, card: 33 }
     },
-    'viagem-3': { // Linha 3 5V (IDA)
+    'viagem-3': {
         '23': { cash: 0, card: 0 },
         '01': { cash: 1, card: 9 },
         '03': { cash: 4, card: 7 },
         '04': { cash: 14, card: 20 },
         '98': { cash: 0, card: 27 }
     },
-    'viagem-4': { // Linha 4 12V (VOLTA)
+    'viagem-4': {
         '23': { cash: 3, card: 1 },
         '01': { cash: 6, card: 21 },
         '03': { cash: 11, card: 8 },
@@ -233,19 +233,18 @@ function getOccupancyColor(occupancy) {
     return '#F44336';
 }
 
-
 function getMarkerColorByFlow(stationData, mode) {
     switch(mode) {
         case 'boarding':
             if (stationData.boarding === 0) return '#E0E0E0';
-            if (stationData.boarding < 10) return '#90CAF9';  // ✅ CORRIGIDO
-            if (stationData.boarding < 20) return '#42A5F5';  // ✅ CORRIGIDO
+            if (stationData.boarding < 10) return '#90CAF9';
+            if (stationData.boarding < 20) return '#42A5F5';
             return '#1565C0';
             
         case 'alighting':
             if (stationData.alighting === 0) return '#E0E0E0';
-            if (stationData.alighting < 10) return '#F48FB1';  // ✅ CORRIGIDO
-            if (stationData.alighting < 20) return '#EC407A';  // ✅ CORRIGIDO
+            if (stationData.alighting < 10) return '#F48FB1';
+            if (stationData.alighting < 20) return '#EC407A';
             return '#C2185B';
             
         case 'both':
@@ -254,7 +253,7 @@ function getMarkerColorByFlow(stationData, mode) {
             
             const boardingRatio = stationData.boarding / totalFlow;
             if (boardingRatio > 0.6) return '#2196F3';
-            if (boardingRatio < 0.4) return '#F44336';  // ✅ CORRIGIDO
+            if (boardingRatio < 0.4) return '#F44336';
             return '#9C27B0';
             
         case 'occupancy':
@@ -286,9 +285,9 @@ function getMarkerSizeByFlow(stationData, mode) {
     }
     
     if (value === 0) return 5;
-    if (value < 10) return 8;   // ✅ CORRIGIDO
-    if (value < 20) return 11;  // ✅ CORRIGIDO
-    if (value < 30) return 14;  // ✅ CORRIGIDO
+    if (value < 10) return 8;
+    if (value < 20) return 11;
+    if (value < 30) return 14;
     return 17;
 }
 
@@ -296,15 +295,23 @@ function getMarkerSizeByFlow(stationData, mode) {
 // IDENTIFICAÇÃO DE VIAGENS
 // 
 const referencePoints = {
+    // P31 IDA - Estação 215
     'parada-31-ida': {
-        lat: -30.07877840021341,
-        lng: -51.116325034257486,
-        name: 'Parada 31 (Ida)'
+        lat: -30.078806,
+        lng: -51.116741,
+        name: 'Parada 31 (Ida) - Est. 215'
     },
+    // P31 VOLTA - Estação 266
     'parada-31-volta': {
-        lat: -30.079076755103014,
-        lng: -51.11620684140078,
-        name: 'Parada 31 (Volta)'
+        lat: -30.079095,
+        lng: -51.116088,
+        name: 'Parada 31 (Volta) - Est. 266'
+    },
+    // ✅ P42 IDA - Estação 31
+    'parada-42-ida': {
+        lat: -30.094485,
+        lng: -51.079701,
+        name: 'Parada 42 (Ida) - Est. 31'
     }
 };
 
@@ -324,7 +331,12 @@ function calculateDistance(lat1, lng1, lat2, lng2) {
 }
 
 function determineDirection(stationLat, stationLng, stationNumber) {
-    if (parseInt(stationNumber) !== 31) return null;
+    // ✅ LOG: Ver qual número de estação está sendo verificado
+    const numStation = parseInt(stationNumber);
+    
+    if (numStation !== 31) return null;
+    
+    console.log(`🔍 Verificando Parada 31: Est.${stationNumber} nas coords [${stationLat}, ${stationLng}]`);
     
     const distIda = calculateDistance(
         stationLat, stationLng,
@@ -338,12 +350,64 @@ function determineDirection(stationLat, stationLng, stationNumber) {
         referencePoints['parada-31-volta'].lng
     );
     
+    console.log(`   📏 Distância IDA: ${distIda.toFixed(2)}m`);
+    console.log(`   📏 Distância VOLTA: ${distVolta.toFixed(2)}m`);
+    
     const tolerance = 50;
     
-    if (distIda < tolerance) return 'ida';      // ✅ CORRIGIDO
-    if (distVolta < tolerance) return 'volta';  // ✅ CORRIGIDO
+    if (distIda < tolerance) {
+        console.log(`   ✅ PARADA 31 IDA ENCONTRADA! (${distIda.toFixed(2)}m)`);
+        return 'ida';
+    }
+    if (distVolta < tolerance) {
+        console.log(`   ✅ PARADA 31 VOLTA ENCONTRADA! (${distVolta.toFixed(2)}m)`);
+        return 'volta';
+    }
     
+    console.warn(`   ⚠️ Parada 31 fora da tolerância (IDA: ${distIda.toFixed(2)}m, VOLTA: ${distVolta.toFixed(2)}m)`);
     return null;
+}
+
+// ✅ NOVA FUNÇÃO: Identificar Parada 42
+function determineStation42(stationLat, stationLng, stationNumber) {
+    const numStation = parseInt(stationNumber);
+    
+    if (numStation !== 42) return false;
+    
+    console.log(`🔍 Verificando Parada 42: Est.${stationNumber} nas coords [${stationLat}, ${stationLng}]`);
+    
+    const distVolta = calculateDistance(
+        stationLat, stationLng,
+        referencePoints['parada-42-volta'].lat,
+        referencePoints['parada-42-volta'].lng
+    );
+    
+    console.log(`   📏 Distância da P42 de referência: ${distVolta.toFixed(2)}m`);
+    
+    const tolerance = 50; // 50 metros de tolerância
+    
+    if (distVolta < tolerance) {
+        console.log(`   ✅ PARADA 42 VOLTA ENCONTRADA! (${distVolta.toFixed(2)}m)`);
+        return true;
+    }
+    
+    console.warn(`   ⚠️ Parada 42 fora da tolerância (${distVolta.toFixed(2)}m)`);
+    return false;
+}
+
+// ✅ NOVA FUNÇÃO: Identificar Parada 42
+function determineStation42(stationLat, stationLng, stationNumber) {
+    if (parseInt(stationNumber) !== 42) return false;
+    
+    const distVolta = calculateDistance(
+        stationLat, stationLng,
+        referencePoints['parada-42-volta'].lat,
+        referencePoints['parada-42-volta'].lng
+    );
+    
+    const tolerance = 50; // 50 metros de tolerância
+    
+    return distVolta < tolerance;
 }
 
 function identifyTrips() {
@@ -452,97 +516,283 @@ function identifyTrips() {
         console.log(`  ✅ ${trip.name} ${direction}: ${inicio} → ${fim} (${trip.stationCount} estações)`);
     });
     
+    // ✅ IDENTIFICAR ESTAÇÕES NÃO ATRIBUÍDAS
+    const assignedIndices = new Set();
+    allTrips.forEach(trip => {
+        trip.stationIndices.forEach(idx => assignedIndices.add(idx));
+    });
+
+    const unassignedStations = [];
+    allStationsData.forEach((station, index) => {
+        if (!assignedIndices.has(index)) {
+            unassignedStations.push({
+                index: index,
+                stationNumber: station.stationNumber,
+                time: station.time1,
+                boarding: station.boarding,
+                alighting: station.alighting
+            });
+        }
+    });
+
+    if (unassignedStations.length > 0) {
+        console.warn(`⚠️ ${unassignedStations.length} estações NÃO foram atribuídas a nenhuma viagem:`);
+        unassignedStations.forEach(s => {
+            console.warn(`   Est. ${s.stationNumber} às ${s.time} - ${s.boarding}↗️ ${s.alighting}↘️`);
+        });
+    }
+    
     return allTrips;
 }
+
 // 
-// MÉTRICAS DA PARADA 31 (CORRIGIDAS)
+// MÉTRICAS DAS PARADAS 31 E 42 (BUSCA POR COORDENADAS)
+// 
+// 
+// MÉTRICAS DAS PARADAS 31 E 42 (BUSCA POR COORDENADAS)
 // 
 function calculateMetrics() {
     const metrics = {
-        minima: 0,      // Código 04 - até parada 31
-        maxima: 0,      // Código 01 - até o final da linha
-        divisa: 0,      // Código 23 - até parada 31 na VOLTA
-        isentos: 0      // ✅ NOVO: Código 98 - total de isentos
+        minimaIda: 0,       // Desembarques ATÉ P31 na IDA
+        divisa: 0,          // Desembarques ATÉ P31 na VOLTA
+        minimaVolta: 0,     // Embarques A PARTIR da P31 na VOLTA
+        figueiraVolta: 0,   // Embarques A PARTIR da P42 na VOLTA
+        maxima: 0,          // Embarques de percurso longo
+        isentos: 0
     };
     
-    // Processar dados de movimentação
+    allTrips.forEach(trip => {
+        let p31Index = -1;
+        let p42Index = -1;
+        
+        // BUSCAR P31 POR COORDENADAS
+        const p31Ref = trip.direction === 'ida' 
+            ? referencePoints['parada-31-ida']
+            : referencePoints['parada-31-volta'];
+        
+        trip.stationIndices.forEach((stationIndex, idx) => {
+            const station = allStationsData[stationIndex];
+            
+            // Verificar P31 por distância
+            const distP31 = calculateDistance(
+                station.latlng[0], station.latlng[1],
+                p31Ref.lat, p31Ref.lng
+            );
+            
+            if (distP31 < 50 && p31Index === -1) {
+                p31Index = idx;
+                console.log(`✅ P31 encontrada na ${trip.name} no índice ${idx} (${distP31.toFixed(2)}m) - Est. ${station.stationNumber}`);
+            }
+
+            // Verificar P42 (apenas IDA)
+            if (trip.direction === 'ida') {
+                const distP42 = calculateDistance(
+                    station.latlng[0], station.latlng[1],
+                    referencePoints['parada-42-ida'].lat,
+                    referencePoints['parada-42-ida'].lng
+                );
+                
+                if (distP42 < 50 && p42Index === -1) {
+                    p42Index = idx;
+                    console.log(`✅ P42 encontrada na ${trip.name} no índice ${idx} (${distP42.toFixed(2)}m) - Est. ${station.stationNumber}`);
+                }
+            }
+        });
+        
+        // PROCESSAR MÉTRICAS
+        if (p31Index !== -1) {
+            if (trip.direction === 'ida') {
+                // IDA: Desembarques ATÉ P31 = MÍNIMA IDA
+                for (let i = 0; i <= p31Index; i++) {
+                    const stationIndex = trip.stationIndices[i];
+                    const station = allStationsData[stationIndex];
+                    metrics.minimaIda += station.alighting;
+                }
+                
+                // IDA: Embarques APÓS P31 = MÁXIMA (quem vai até o final)
+                for (let i = p31Index + 1; i < trip.stationIndices.length; i++) {
+                    const stationIndex = trip.stationIndices[i];
+                    const station = allStationsData[stationIndex];
+                    metrics.maxima += station.boarding;
+                }
+                
+            } else if (trip.direction === 'volta') {
+                // VOLTA: Desembarques ATÉ P31 = DIVISA
+                for (let i = 0; i <= p31Index; i++) {
+                    const stationIndex = trip.stationIndices[i];
+                    const station = allStationsData[stationIndex];
+                    metrics.divisa += station.alighting;
+                }
+                
+                // VOLTA: Embarques A PARTIR da P31 = MÍNIMA VOLTA
+                for (let i = p31Index; i < trip.stationIndices.length; i++) {
+                    const stationIndex = trip.stationIndices[i];
+                    const station = allStationsData[stationIndex];
+                    metrics.minimaVolta += station.boarding;
+                }
+                
+                // VOLTA: Embarques ATÉ P31 = MÁXIMA (quem pegou no início)
+                for (let i = 0; i <= p31Index; i++) {
+                    const stationIndex = trip.stationIndices[i];
+                    const station = allStationsData[stationIndex];
+                    metrics.maxima += station.boarding;
+                }
+            }
+        } else {
+            console.warn(`⚠️ P31 NÃO encontrada na ${trip.name}`);
+        }
+        
+        // ✅ FIGUEIRA IDA (P42)
+if (p42Index !== -1 && trip.direction === 'ida') {
+    for (let i = p42Index; i < trip.stationIndices.length; i++) {
+        const stationIndex = trip.stationIndices[i];
+        const station = allStationsData[stationIndex];
+        metrics.figueiraVolta += station.boarding;
+    }
+} else if (trip.direction === 'ida') {
+    console.warn(`⚠️ P42 NÃO encontrada na ${trip.name}`);
+}
+    });
+    
+    // ISENTOS
     Object.keys(tariffMovementData).forEach(tripId => {
         const tripData = tariffMovementData[tripId];
-        const trip = allTrips.find(t => t.id === tripId);
-        
-        if (!trip) return;
-        
-        const isVolta = trip.direction === 'volta';
-        
-        // Código 04 (Mínima) - até parada 31
-        if (tripData['04']) {
-            const minimaTotal = (tripData['04'].cash || 0) + (tripData['04'].card || 0);
-            metrics.minima += minimaTotal;
-        }
-        
-        // Código 01 (Máxima) - até o final da linha (todas as estações)
-        if (tripData['01']) {
-            const maximaTotal = (tripData['01'].cash || 0) + (tripData['01'].card || 0);
-            metrics.maxima += maximaTotal;
-        }
-        
-        // Código 23 (Divisa) - até parada 31 na VOLTA
-        if (isVolta && tripData['23']) {
-            const divisaTotal = (tripData['23'].cash || 0) + (tripData['23'].card || 0);
-            metrics.divisa += divisaTotal;
-        }
-        
-        // ✅ NOVO: Código 98 (Isentos) - todas as viagens
         if (tripData['98']) {
-            const isentosTotal = (tripData['98'].cash || 0) + (tripData['98'].card || 0);
-            metrics.isentos += isentosTotal;
+            metrics.isentos += (tripData['98'].cash || 0) + (tripData['98'].card || 0);
         }
     });
     
-    console.log('📊 Métricas calculadas:');
-    console.log(`   🟢 Mínima (Código 04 - até P31): ${metrics.minima}`);
-    console.log(`   🔴 Máxima (Código 01 - até o final): ${metrics.maxima}`);
-    console.log(`   🟡 Divisa (Código 23 - até P31 na VOLTA): ${metrics.divisa}`);
-    console.log(`   ⚪ Isentos (Código 98 - Total): ${metrics.isentos}`);
+    console.log('📊 ');
+console.log('📊 MÉTRICAS CALCULADAS (POR COORDENADAS):');
+console.log('📊 ');
+console.log(`   🟢 Mínima IDA (desembarques até P31): ${metrics.minimaIda}`);
+console.log(`   🔴 Máxima (embarques de percurso longo): ${metrics.maxima}`);
+console.log(`   🟡 Divisa (desembarques até P31 na VOLTA): ${metrics.divisa}`);
+console.log(`   🟢 Mínima VOLTA (embarques a partir da P31): ${metrics.minimaVolta}`);
+console.log(`   🟢 Figueira IDA (embarques a partir da P42): ${metrics.figueiraVolta}`); // ← Atualizado
+console.log(`   ⚪ Isentos (código 98): ${metrics.isentos}`);
+console.log('📊 ');
     
     return metrics;
 }
 
+
 function calculateTripMetrics(tripId) {
-    const tripData = tariffMovementData[tripId];
-    if (!tripData) return null;
-    
     const trip = allTrips.find(t => t.id === tripId);
     if (!trip) return null;
     
     const metrics = {
-        minima: 0,
-        maxima: 0,
+        minimaIda: 0,
         divisa: 0,
-        isentos: 0  // ✅ NOVO
+        minimaVolta: 0,
+        figueiraVolta: 0,
+        maxima: 0,
+        isentos: 0
     };
     
-    const isVolta = trip.direction === 'volta';
+    let p31Index = -1;
+    let p42Index = -1;
     
-    // Código 04 (Mínima)
-    if (tripData['04']) {
-        metrics.minima = (tripData['04'].cash || 0) + (tripData['04'].card || 0);
+    // Buscar P31 e P42 NESTA viagem específica
+    const p31Ref = trip.direction === 'ida' 
+        ? referencePoints['parada-31-ida']
+        : referencePoints['parada-31-volta'];
+    
+    trip.stationIndices.forEach((stationIndex, idx) => {
+        const station = allStationsData[stationIndex];
+        
+        // Verificar P31
+        const distP31 = calculateDistance(
+            station.latlng[0], station.latlng[1],
+            p31Ref.lat, p31Ref.lng
+        );
+        
+        if (distP31 < 50 && p31Index === -1) {
+            p31Index = idx;
+            console.log(`✅ [FILTRO] P31 encontrada na ${trip.name} no índice ${idx} - Est. ${station.stationNumber}`);
+        }
+        
+        // Verificar P42 (apenas IDA)
+        if (trip.direction === 'ida') {
+            const distP42 = calculateDistance(
+                station.latlng[0], station.latlng[1],
+                referencePoints['parada-42-ida'].lat,
+                referencePoints['parada-42-ida'].lng
+            );
+            
+            if (distP42 < 50 && p42Index === -1) {
+                p42Index = idx;
+                console.log(`✅ [FILTRO] P42 encontrada na ${trip.name} no índice ${idx} - Est. ${station.stationNumber}`);
+            }
+        }
+    });
+    
+    // Processar métricas APENAS DESTA VIAGEM
+    if (p31Index !== -1) {
+        if (trip.direction === 'ida') {
+            // IDA: Mínima IDA (desembarques até P31)
+            for (let i = 0; i <= p31Index; i++) {
+                const stationIndex = trip.stationIndices[i];
+                const station = allStationsData[stationIndex];
+                metrics.minimaIda += station.alighting;
+            }
+            
+            // IDA: Máxima (embarques após P31)
+            for (let i = p31Index + 1; i < trip.stationIndices.length; i++) {
+                const stationIndex = trip.stationIndices[i];
+                const station = allStationsData[stationIndex];
+                metrics.maxima += station.boarding;
+            }
+            
+            // IDA: Figueira (embarques a partir da P42)
+            if (p42Index !== -1) {
+                for (let i = p42Index; i < trip.stationIndices.length; i++) {
+                    const stationIndex = trip.stationIndices[i];
+                    const station = allStationsData[stationIndex];
+                    metrics.figueiraVolta += station.boarding;
+                }
+            }
+            
+        } else if (trip.direction === 'volta') {
+            // VOLTA: Divisa (desembarques até P31)
+            for (let i = 0; i <= p31Index; i++) {
+                const stationIndex = trip.stationIndices[i];
+                const station = allStationsData[stationIndex];
+                metrics.divisa += station.alighting;
+            }
+            
+            // VOLTA: Mínima VOLTA (embarques a partir da P31)
+            for (let i = p31Index; i < trip.stationIndices.length; i++) {
+                const stationIndex = trip.stationIndices[i];
+                const station = allStationsData[stationIndex];
+                metrics.minimaVolta += station.boarding;
+            }
+            
+            // VOLTA: Máxima (embarques até P31 - quem pegou no início)
+            for (let i = 0; i <= p31Index; i++) {
+                const stationIndex = trip.stationIndices[i];
+                const station = allStationsData[stationIndex];
+                metrics.maxima += station.boarding;
+            }
+        }
+    } else {
+        console.warn(`⚠️ [FILTRO] P31 NÃO encontrada na ${trip.name}`);
     }
     
-    // Código 01 (Máxima)
-    if (tripData['01']) {
-        metrics.maxima = (tripData['01'].cash || 0) + (tripData['01'].card || 0);
-    }
-    
-    // Código 23 (Divisa) - apenas na VOLTA
-    if (isVolta && tripData['23']) {
-        metrics.divisa = (tripData['23'].cash || 0) + (tripData['23'].card || 0);
-    }
-    
-    // ✅ NOVO: Código 98 (Isentos)
-    if (tripData['98']) {
+    // Isentos APENAS DESTA VIAGEM
+    const tripData = tariffMovementData[tripId];
+    if (tripData && tripData['98']) {
         metrics.isentos = (tripData['98'].cash || 0) + (tripData['98'].card || 0);
     }
+    
+    // Log das métricas calculadas para esta viagem
+    console.log(`📊 [FILTRO] Métricas da ${trip.name}:`);
+    console.log(`   🟢 Mínima IDA: ${metrics.minimaIda}`);
+    console.log(`   🔴 Máxima: ${metrics.maxima}`);
+    console.log(`   🟡 Divisa: ${metrics.divisa}`);
+    console.log(`   🟢 Mínima VOLTA: ${metrics.minimaVolta}`);
+    console.log(`   🟢 Figueira: ${metrics.figueiraVolta}`);
+    console.log(`   ⚪ Isentos: ${metrics.isentos}`);
     
     return metrics;
 }
@@ -557,14 +807,12 @@ function calculateDetailedMetrics() {
         byPayment: { cash: {}, card: {} }
     };
     
-    // Inicializar contadores
     Object.keys(tariffTypes).forEach(code => {
         tariffMetrics.byType[code] = { count: 0, boarding: 0, revenue: 0 };
         tariffMetrics.byPayment.cash[code] = { count: 0, boarding: 0, revenue: 0 };
         tariffMetrics.byPayment.card[code] = { count: 0, boarding: 0, revenue: 0 };
     });
     
-    // Processar dados de movimentação
     Object.keys(tariffMovementData).forEach(tripId => {
         const tripData = tariffMovementData[tripId];
         
@@ -575,18 +823,15 @@ function calculateDetailedMetrics() {
             const cashCount = tripData[code].cash || 0;
             const cardCount = tripData[code].card || 0;
             
-            // Métricas por tipo
             tariffMetrics.byType[code].boarding += cashCount + cardCount;
             tariffMetrics.byType[code].revenue += (cashCount + cardCount) * tariffInfo.value;
             
-            // Métricas por pagamento
             tariffMetrics.byPayment.cash[code].boarding += cashCount;
             tariffMetrics.byPayment.cash[code].revenue += cashCount * tariffInfo.value;
             
             tariffMetrics.byPayment.card[code].boarding += cardCount;
             tariffMetrics.byPayment.card[code].revenue += cardCount * tariffInfo.value;
             
-            // Totais de pagamento
             paymentMetrics.cash.boarding += cashCount;
             paymentMetrics.cash.revenue += cashCount * tariffInfo.value;
             
@@ -602,16 +847,76 @@ function calculateDetailedMetrics() {
     return { tariffMetrics, paymentMetrics };
 }
 
-function updateMetricsDisplay(metrics) {
-    const minimaEl = document.getElementById('metric-minima-ida');
-    const maximaEl = document.getElementById('metric-divisa');
-    const divisaEl = document.getElementById('metric-minima-volta');
-    const isentosEl = document.getElementById('metric-isentos');  // ✅ NOVO
+
+// ✅ FUNÇÃO DE DEBUG TEMPORÁRIA - Procurar parada mais próxima da P42
+function debugFindP42() {
+    console.log('🔍 ');
+    console.log('🔍 DEBUG: PROCURANDO PARADA 42');
+    console.log('🔍 ');
+    console.log(`📍 Coordenadas de referência P42: [${referencePoints['parada-42-volta'].lat}, ${referencePoints['parada-42-volta'].lng}]`);
+    console.log('🔍 ');
     
-    if (minimaEl) minimaEl.textContent = metrics.minima || 0;
+    const candidates = [];
+    
+    allStationsData.forEach((station, index) => {
+        // Calcular distância de TODAS as estações até a P42 de referência
+        const dist = calculateDistance(
+            station.latlng[0],
+            station.latlng[1],
+            referencePoints['parada-42-volta'].lat,
+            referencePoints['parada-42-volta'].lng
+        );
+        
+        candidates.push({
+            index: index,
+            stationNumber: station.stationNumber,
+            distance: dist,
+            coords: station.latlng,
+            time: station.time1,
+            direction: station.direction
+        });
+    });
+    
+    // Ordenar por distância (mais próximas primeiro)
+    candidates.sort((a, b) => a.distance - b.distance);
+    
+    // Mostrar as 10 estações mais próximas
+    console.log('📍 10 ESTAÇÕES MAIS PRÓXIMAS DA P42 DE REFERÊNCIA:');
+    candidates.slice(0, 10).forEach((c, idx) => {
+        console.log(`   ${idx + 1}º Est. ${c.stationNumber} - ${c.distance.toFixed(2)}m - ${c.direction} - ${c.time}`);
+    });
+    
+    console.log('🔍 ');
+    
+    // Verificar especificamente estações com número "42"
+    const stations42 = candidates.filter(c => parseInt(c.stationNumber) === 42);
+    
+    if (stations42.length > 0) {
+        console.log('📍 ESTAÇÕES COM NÚMERO 42:');
+        stations42.forEach(s => {
+            console.log(`   Est. ${s.stationNumber} - ${s.distance.toFixed(2)}m - ${s.direction} - ${s.time} - [${s.coords[0]}, ${s.coords[1]}]`);
+        });
+    } else {
+        console.warn('⚠️ NENHUMA estação com número 42 foi encontrada no CSV!');
+    }
+    
+    console.log('🔍 ');
+}
+
+function updateMetricsDisplay(metrics) {
+    const minimaIdaEl = document.getElementById('metric-minima-ida');
+    const maximaEl = document.getElementById('metric-maxima');
+    const divisaEl = document.getElementById('metric-divisa');
+    const minimaVoltaEl = document.getElementById('metric-minima-volta');
+    const figueiraVoltaEl = document.getElementById('metric-figueira-volta');
+    const isentosEl = document.getElementById('metric-isentos');
+    
+    if (minimaIdaEl) minimaIdaEl.textContent = metrics.minimaIda || 0;
     if (maximaEl) maximaEl.textContent = metrics.maxima || 0;
     if (divisaEl) divisaEl.textContent = metrics.divisa || 0;
-    if (isentosEl) isentosEl.textContent = metrics.isentos || 0;  // ✅ NOVO
+    if (minimaVoltaEl) minimaVoltaEl.textContent = metrics.minimaVolta || 0;
+    if (figueiraVoltaEl) figueiraVoltaEl.textContent = metrics.figueiraVolta || 0;
+    if (isentosEl) isentosEl.textContent = metrics.isentos || 0;
 }
 
 function updateDetailedDisplay() {
@@ -693,31 +998,25 @@ function applyTripFilter() {
         if (trip) {
             console.log(`🎯 Viagem selecionada: ${trip.name}`);
             
-            // Calcular e atualizar métricas
             const tripMetrics = calculateTripMetrics(selectedTripId);
             if (tripMetrics) {
                 updateMetricsDisplay(tripMetrics);
             }
             
-            // Exibir rota
             clearAllRoutes();
             displayRoute(selectedTripId);
             
-            // ✅ MOSTRAR RESUMO DA VIAGEM ESPECÍFICA
             showTripSummary(selectedTripId);
         }
     } else {
         console.log('📋 Mostrando todas as viagens');
         
-        // Métricas globais
         const allMetrics = calculateMetrics();
         updateMetricsDisplay(allMetrics);
         
-        // Exibir todas as rotas
         clearAllRoutes();
         displayAllRoutes();
         
-        // ✅ MOSTRAR RESUMO AGREGADO DE TODAS AS VIAGENS
         showAllTripsSummary();
     }
     
@@ -725,6 +1024,7 @@ function applyTripFilter() {
     calculateDetailedMetrics();
     updateDetailedDisplay();
 }
+
 function resetTripFilter() {
     selectedTripId = 'all';
     const selectEl = document.getElementById('filter-trip');
@@ -735,10 +1035,8 @@ function resetTripFilter() {
     clearAllRoutes();
     displayAllRoutes();
     
-    // ✅ MOSTRAR RESUMO AGREGADO
     showAllTripsSummary();
     
-    // Métricas globais
     const allMetrics = calculateMetrics();
     updateMetricsDisplay(allMetrics);
     
@@ -746,6 +1044,7 @@ function resetTripFilter() {
     calculateDetailedMetrics();
     updateDetailedDisplay();
 }
+
 function resetAllFilters() {
     resetTripFilter();
     selectedTariffTypes = Object.keys(tariffTypes);
@@ -853,7 +1152,6 @@ function closeAllPopups() {
     markers.forEach(m => m.closePopup());
 }
 
-
 // 
 // SISTEMA ANTI-SOBREPOSIÇÃO DE MARCADORES
 // 
@@ -890,9 +1188,8 @@ function getMarkerOffset(stationIndex, allStations) {
         return { lat: 0, lng: 0 };
     }
     
-    // Calcular offset baseado no índice para evitar sobreposição
-    const angle = (stationIndex % 8) * (Math.PI / 4); // 8 direções
-    const offsetDistance = 0.0001; // ~11 metros
+    const angle = (stationIndex % 8) * (Math.PI / 4);
+    const offsetDistance = 0.0001;
     
     return {
         lat: Math.cos(angle) * offsetDistance,
@@ -907,25 +1204,20 @@ function createInteractiveMarker(latlng, stationData, index) {
     const color = getMarkerColorByFlow(stationData, currentVisualizationMode);
     const size = getMarkerSizeByFlow(stationData, currentVisualizationMode);
     
-    // ✅ APLICAR OFFSET PARA EVITAR SOBREPOSIÇÃO
     const offset = getMarkerOffset(index, allStationsData);
     const adjustedLatlng = [
         latlng[0] + offset.lat,
         latlng[1] + offset.lng
     ];
     
-    // Calcular centro do círculo
     const centerX = 80;
     const centerY = 40;
     const radius = size;
     
-    // ✅ CRIAR MARCADOR COM LINHAS CONECTORAS MAIS CURTAS
     const iconHtml = `
         <div style="position: relative; width: 160px; height: 80px;">
-            <!-- Linha conectora EMBARQUES (esquerda) -->
             ${stationData.boarding > 0 ? `
                 <svg style="position: absolute; top: 0; left: 0; width: 160px; height: 80px; pointer-events: none; z-index: 0;">
-                    <!-- Linha principal -->
                     <line 
                         x1="58" 
                         y1="${centerY}" 
@@ -935,14 +1227,12 @@ function createInteractiveMarker(latlng, stationData, index) {
                         stroke-width="2.5"
                         stroke-linecap="round"
                     />
-                    <!-- Seta triangular -->
                     <polygon 
                         points="${centerX - radius - 2},${centerY} ${centerX - radius - 8},${centerY - 4} ${centerX - radius - 8},${centerY + 4}" 
                         fill="#2196F3"
                     />
                 </svg>
                 
-                <!-- Label EMBARQUES -->
                 <div style="
                     position: absolute;
                     left: 2px;
@@ -968,7 +1258,6 @@ function createInteractiveMarker(latlng, stationData, index) {
                 </div>
             ` : ''}
             
-            <!-- Círculo principal (CENTRO) -->
             <div style="
                 width: ${size * 2}px;
                 height: ${size * 2}px;
@@ -983,7 +1272,6 @@ function createInteractiveMarker(latlng, stationData, index) {
                 z-index: 3;
                 transition: transform 0.2s ease;
             ">
-                <!-- Número da estação dentro do círculo -->
                 <div style="
                     position: absolute;
                     top: 50%;
@@ -998,10 +1286,8 @@ function createInteractiveMarker(latlng, stationData, index) {
                 </div>
             </div>
             
-            <!-- Linha conectora DESEMBARQUES (direita) -->
             ${stationData.alighting > 0 ? `
                 <svg style="position: absolute; top: 0; left: 0; width: 160px; height: 80px; pointer-events: none; z-index: 0;">
-                    <!-- Linha principal -->
                     <line 
                         x1="${centerX + radius + 2}" 
                         y1="${centerY}" 
@@ -1011,14 +1297,12 @@ function createInteractiveMarker(latlng, stationData, index) {
                         stroke-width="2.5"
                         stroke-linecap="round"
                     />
-                    <!-- Seta triangular -->
                     <polygon 
                         points="${centerX + radius + 2},${centerY} ${centerX + radius + 8},${centerY - 4} ${centerX + radius + 8},${centerY + 4}" 
                         fill="#F44336"
                     />
                 </svg>
                 
-                <!-- Label DESEMBARQUES -->
                 <div style="
                     position: absolute;
                     right: 2px;
@@ -1046,7 +1330,7 @@ function createInteractiveMarker(latlng, stationData, index) {
         </div>
     `;
     
-    const marker = L.marker(adjustedLatlng, {  // ✅ Usar coordenadas ajustadas
+    const marker = L.marker(adjustedLatlng, {
         icon: L.divIcon({
             html: iconHtml,
             className: 'custom-marker-icon',
@@ -1070,7 +1354,6 @@ function createInteractiveMarker(latlng, stationData, index) {
         className: 'custom-popup'
     });
     
-    // ✅ Tooltip melhorado
     marker.on('mouseover', function(e) {
         this.bindTooltip(`
             <div style="
@@ -1139,6 +1422,7 @@ function createInteractiveMarker(latlng, stationData, index) {
     
     return marker;
 }
+
 // 
 // CLUSTERING
 // 
@@ -1156,9 +1440,9 @@ function initializeClusterGroup() {
             const childCount = cluster.getChildCount();
             let className = 'marker-cluster-';
             
-            if (childCount < 10) {  // ✅ CORRIGIDO
+            if (childCount < 10) {
                 className += 'small';
-            } else if (childCount < 50) {  // ✅ CORRIGIDO
+            } else if (childCount < 50) {
                 className += 'medium';
             } else {
                 className += 'large';
@@ -1267,7 +1551,7 @@ function updateTopBoarding() {
             <div class="ranking-item" onclick="focusStation(${station.arrayIndex})">
                 <div class="ranking-position ${positionClass}">${position}º</div>
                 <div class="ranking-info">
-                    <span class="ranking-station">🚏 Est. ${station.stationNumber}</span>
+                    <span class="ranking-station">🚏 Est. ${station.stationNumber || 'N/A'}</span>
                     <span class="ranking-value">${station.alighting}↘️ | ${station.carried} a bordo</span>
                 </div>
                 <div class="ranking-badge">${station.boarding} ↗️</div>
@@ -1359,7 +1643,6 @@ function updateVisualization(mode) {
     console.log(`🎨 Visualização: ${mode || 'both'}`);
     currentVisualizationMode = mode || 'both';
     
-    // ✅ LIMPAR COMPLETAMENTE OS MARCADORES
     markers.forEach(marker => {
         if (map.hasLayer(marker)) {
             map.removeLayer(marker);
@@ -1368,20 +1651,17 @@ function updateVisualization(mode) {
     
     const visibleMarkers = [];
     
-    // ✅ RECRIAR OS MARCADORES VISÍVEIS
     allStationsData.forEach((stationData, index) => {
         if (!shouldShowStation(index)) return;
         
-        // ✅ SEMPRE MOSTRAR TODOS (modo 'both' fixo)
         const newMarker = createInteractiveMarker(stationData.latlng, stationData, index);
         markers[index] = newMarker;
         visibleMarkers.push(newMarker);
     });
     
-    // ✅ ADICIONAR DIRETO NO MAPA (SEM CLUSTERING)
     visibleMarkers.forEach(marker => marker.addTo(map));
     
-    updateLegend('both');  // ✅ Sempre modo 'both'
+    updateLegend('both');
     createStationsList();
     updateAdvancedStatistics();
     
@@ -1421,7 +1701,7 @@ function updateLegend(mode) {
             legendHTML = `
                 <div class="legend-item">
                     <div class="legend-color" style="background-color: #90CAF9;"></div>
-                    <span>< 10 embarques</span>
+                    <span>&lt; 10 embarques</span>
                 </div>
                 <div class="legend-item">
                     <div class="legend-color" style="background-color: #42A5F5;"></div>
@@ -1438,7 +1718,7 @@ function updateLegend(mode) {
             legendHTML = `
                 <div class="legend-item">
                     <div class="legend-color" style="background-color: #F48FB1;"></div>
-                    <span>< 10 desembarques</span>
+                    <span>&lt; 10 desembarques</span>
                 </div>
                 <div class="legend-item">
                     <div class="legend-color" style="background-color: #EC407A;"></div>
@@ -1455,7 +1735,7 @@ function updateLegend(mode) {
             legendHTML = `
                 <div class="legend-item">
                     <div class="legend-color" style="background-color: #4CAF50;"></div>
-                    <span>< 70% - Confortável</span>
+                    <span>&lt; 70% - Confortável</span>
                 </div>
                 <div class="legend-item">
                     <div class="legend-color" style="background-color: #FF9800;"></div>
@@ -1506,6 +1786,7 @@ function createStationsList() {
     
     listContainer.innerHTML = listHTML;
 }
+
 // 
 // RESUMO DA VIAGEM
 // 
@@ -1521,20 +1802,13 @@ function showTripSummary(tripId) {
     
     console.log('✅ Viagem encontrada:', trip);
     
-    // Calcular total de passageiros transportados
-    const totalPassengers = trip.totalBoarding;
-    
-    // Média por estação
     const avgPerStation = trip.stationCount > 0 ? Math.round(trip.totalBoarding / trip.stationCount) : 0;
     
-    // Período
     const startTime = trip.actualStartTime ? trip.actualStartTime.split(' ')[1].substring(0, 5) : 'N/A';
     const endTime = trip.actualEndTime ? trip.actualEndTime.split(' ')[1].substring(0, 5) : 'N/A';
     
-    // Direção formatada
     const directionFormatted = trip.direction === 'ida' ? '➡️ IDA' : '⬅️ VOLTA';
     
-    // ✅ CALCULAR TOTAIS POR PORTA
     const doorTotals = [
         { boarding: 0, alighting: 0 },
         { boarding: 0, alighting: 0 },
@@ -1544,7 +1818,6 @@ function showTripSummary(tripId) {
         { boarding: 0, alighting: 0 }
     ];
     
-    // Somar movimentação de todas as estações da viagem
     trip.stationIndices.forEach(stationIndex => {
         const station = allStationsData[stationIndex];
         if (station && station.doors) {
@@ -1557,17 +1830,14 @@ function showTripSummary(tripId) {
     
     console.log('🚪 Totais por porta:', doorTotals);
     
-    // Atualizar valores básicos
     document.getElementById('summary-boarding').textContent = trip.totalBoarding;
     document.getElementById('summary-alighting').textContent = trip.totalAlighting;
-    document.getElementById('summary-passengers').textContent = totalPassengers;
     document.getElementById('summary-stations').textContent = trip.stationCount;
     document.getElementById('summary-plate').textContent = trip.plate;
     document.getElementById('summary-direction').textContent = directionFormatted;
     document.getElementById('summary-period').textContent = `${startTime} → ${endTime}`;
     document.getElementById('summary-average').textContent = avgPerStation;
     
-    // ✅ ATUALIZAR RESUMO DAS PORTAS
     const doorsContainer = document.getElementById('summary-doors');
     if (doorsContainer) {
         let doorsHTML = '';
@@ -1576,46 +1846,42 @@ function showTripSummary(tripId) {
             const doorNumber = index + 1;
             const total = door.boarding + door.alighting;
             
-            doorsHTML += `
-                <div class="door-card-compact">
-                    <div class="door-number-compact">
-                        <span>🚪</span> Porta ${doorNumber}
-                    </div>
-                    <div class="door-stats-compact">
-                        <div class="door-stat-row">
-                            <span class="door-stat-label">↗️ Embarcaram:</span>
-                            <span class="door-stat-value door-stat-boarding">${door.boarding}</span>
+            if (total > 0) {
+                doorsHTML += `
+                    <div class="door-card-compact">
+                        <div class="door-number-compact">
+                            <span>🚪</span> Porta ${doorNumber}
                         </div>
-                        <div class="door-stat-row">
-                            <span class="door-stat-label">↘️ Desceram:</span>
-                            <span class="door-stat-value door-stat-alighting">${door.alighting}</span>
+                        <div class="door-stats-compact">
+                            <div class="door-stat-row">
+                                <span class="door-stat-label">↗️ Embarcaram:</span>
+                                <span class="door-stat-value door-stat-boarding">${door.boarding}</span>
+                            </div>
+                            <div class="door-stat-row">
+                                <span class="door-stat-label">↘️ Desceram:</span>
+                                <span class="door-stat-value door-stat-alighting">${door.alighting}</span>
+                            </div>
+                        </div>
+                        <div class="door-total-compact">
+                            Total: ${total}
                         </div>
                     </div>
-                    <div class="door-total-compact">
-                        Total: ${total}
-                    </div>
-                </div>
-            `;
+                `;
+            }
         });
+        
+        if (doorsHTML === '') {
+            doorsHTML = '<p style="text-align: center; color: #999; padding: 16px; font-size: 12px;">⚠️ Dados de portas não disponíveis</p>';
+        }
         
         doorsContainer.innerHTML = doorsHTML;
     }
     
-    // Mostrar painel
     document.getElementById('trip-summary').style.display = 'block';
     
-    console.log('✅ Resumo exibido:', {
-        boarding: trip.totalBoarding,
-        alighting: trip.totalAlighting,
-        passengers: totalPassengers,
-        stations: trip.stationCount,
-        plate: trip.plate,
-        direction: directionFormatted,
-        period: `${startTime} → ${endTime}`,
-        average: avgPerStation,
-        doors: doorTotals
-    });
+    console.log('✅ Resumo exibido');
 }
+
 function showAllTripsSummary() {
     console.log('🔍 showAllTripsSummary chamada - Agregando todas as viagens');
     
@@ -1624,7 +1890,6 @@ function showAllTripsSummary() {
         return;
     }
     
-    // ✅ AGREGAR DADOS DE TODAS AS VIAGENS
     let totalBoarding = 0;
     let totalAlighting = 0;
     let totalStations = 0;
@@ -1632,7 +1897,6 @@ function showAllTripsSummary() {
     let earliestTime = null;
     let latestTime = null;
     
-    // Totais por porta (agregado de todas as viagens)
     const doorTotals = [
         { boarding: 0, alighting: 0 },
         { boarding: 0, alighting: 0 },
@@ -1642,18 +1906,15 @@ function showAllTripsSummary() {
         { boarding: 0, alighting: 0 }
     ];
     
-    // Processar cada viagem
     allTrips.forEach(trip => {
         totalBoarding += trip.totalBoarding;
         totalAlighting += trip.totalAlighting;
         totalStations += trip.stationCount;
         
-        // Coletar placas únicas
         if (trip.plate && !plates.includes(trip.plate)) {
             plates.push(trip.plate);
         }
         
-        // Encontrar período mais amplo
         if (!earliestTime || trip.actualStartTime < earliestTime) {
             earliestTime = trip.actualStartTime;
         }
@@ -1661,49 +1922,67 @@ function showAllTripsSummary() {
             latestTime = trip.actualEndTime;
         }
         
-        // Agregar movimentação das portas
         trip.stationIndices.forEach(stationIndex => {
             const station = allStationsData[stationIndex];
             if (station && station.doors) {
                 station.doors.forEach((door, doorIndex) => {
-                    doorTotals[doorIndex].boarding += parseNumber(door.boarding);
-                    doorTotals[doorIndex].alighting += parseNumber(door.alighting);
+                    const boarding = parseNumber(door.boarding);
+                    const alighting = parseNumber(door.alighting);
+                    
+                    doorTotals[doorIndex].boarding += boarding;
+                    doorTotals[doorIndex].alighting += alighting;
                 });
             }
         });
     });
     
-    const totalPassengers = totalBoarding;
+    console.log('🚪 Totais por porta:', doorTotals);
+    
+    const doorBoardingSum = doorTotals.reduce((sum, door) => sum + door.boarding, 0);
+    const doorAlightingSum = doorTotals.reduce((sum, door) => sum + door.alighting, 0);
+    
+    console.log('🔍 Verificação de totais:', {
+        viagens: { boarding: totalBoarding, alighting: totalAlighting },
+        portas: { boarding: doorBoardingSum, alighting: doorAlightingSum },
+        diferenca: {
+            boarding: totalBoarding - doorBoardingSum,
+            alighting: totalAlighting - doorAlightingSum
+        }
+    });
+    
     const avgPerStation = totalStations > 0 ? Math.round(totalBoarding / totalStations) : 0;
     
-    // Formatar período
     const startTime = earliestTime ? earliestTime.split(' ')[1].substring(0, 5) : 'N/A';
     const endTime = latestTime ? latestTime.split(' ')[1].substring(0, 5) : 'N/A';
     
-    // Formatar placas
     const platesText = plates.length > 0 ? plates.join(', ') : 'N/A';
     
-    console.log('📊 Totais agregados:', {
+    console.log('📊 Totais finais:', {
         viagens: allTrips.length,
         embarques: totalBoarding,
         desembarques: totalAlighting,
         estacoes: totalStations,
         placas: platesText,
         periodo: `${startTime} → ${endTime}`,
-        doors: doorTotals
+        media: avgPerStation
     });
     
-    // Atualizar valores básicos
-    document.getElementById('summary-boarding').textContent = totalBoarding;
-    document.getElementById('summary-alighting').textContent = totalAlighting;
-    document.getElementById('summary-passengers').textContent = totalPassengers;
-    document.getElementById('summary-stations').textContent = totalStations;
-    document.getElementById('summary-plate').textContent = platesText;
-    document.getElementById('summary-direction').textContent = `${allTrips.length} viagens`;
-    document.getElementById('summary-period').textContent = `${startTime} → ${endTime}`;
-    document.getElementById('summary-average').textContent = avgPerStation;
+    const summaryBoardingEl = document.getElementById('summary-boarding');
+    const summaryAlightingEl = document.getElementById('summary-alighting');
+    const summaryStationsEl = document.getElementById('summary-stations');
+    const summaryPlateEl = document.getElementById('summary-plate');
+    const summaryDirectionEl = document.getElementById('summary-direction');
+    const summaryPeriodEl = document.getElementById('summary-period');
+    const summaryAverageEl = document.getElementById('summary-average');
     
-    // ✅ ATUALIZAR RESUMO DAS PORTAS
+    if (summaryBoardingEl) summaryBoardingEl.textContent = totalBoarding;
+    if (summaryAlightingEl) summaryAlightingEl.textContent = totalAlighting;
+    if (summaryStationsEl) summaryStationsEl.textContent = totalStations;
+    if (summaryPlateEl) summaryPlateEl.textContent = platesText;
+    if (summaryDirectionEl) summaryDirectionEl.textContent = `${allTrips.length} viagens`;
+    if (summaryPeriodEl) summaryPeriodEl.textContent = `${startTime} → ${endTime}`;
+    if (summaryAverageEl) summaryAverageEl.textContent = avgPerStation;
+    
     const doorsContainer = document.getElementById('summary-doors');
     if (doorsContainer) {
         let doorsHTML = '';
@@ -1712,33 +1991,41 @@ function showAllTripsSummary() {
             const doorNumber = index + 1;
             const total = door.boarding + door.alighting;
             
-            doorsHTML += `
-                <div class="door-card-compact">
-                    <div class="door-number-compact">
-                        <span>🚪</span> Porta ${doorNumber}
-                    </div>
-                    <div class="door-stats-compact">
-                        <div class="door-stat-row">
-                            <span class="door-stat-label">↗️ Embarcaram:</span>
-                            <span class="door-stat-value door-stat-boarding">${door.boarding}</span>
+            if (total > 0) {
+                doorsHTML += `
+                    <div class="door-card-compact">
+                        <div class="door-number-compact">
+                            <span>🚪</span> Porta ${doorNumber}
                         </div>
-                        <div class="door-stat-row">
-                            <span class="door-stat-label">↘️ Desceram:</span>
-                            <span class="door-stat-value door-stat-alighting">${door.alighting}</span>
+                        <div class="door-stats-compact">
+                            <div class="door-stat-row">
+                                <span class="door-stat-label">↗️ Embarcaram:</span>
+                                <span class="door-stat-value door-stat-boarding">${door.boarding}</span>
+                            </div>
+                            <div class="door-stat-row">
+                                <span class="door-stat-label">↘️ Desceram:</span>
+                                <span class="door-stat-value door-stat-alighting">${door.alighting}</span>
+                            </div>
+                        </div>
+                        <div class="door-total-compact">
+                            Total: ${total}
                         </div>
                     </div>
-                    <div class="door-total-compact">
-                        Total: ${total}
-                    </div>
-                </div>
-            `;
+                `;
+            }
         });
+        
+        if (doorsHTML === '') {
+            doorsHTML = '<p style="text-align: center; color: #999; padding: 16px; font-size: 12px;">⚠️ Dados de portas não disponíveis</p>';
+        }
         
         doorsContainer.innerHTML = doorsHTML;
     }
     
-    // Mostrar painel
-    document.getElementById('trip-summary').style.display = 'block';
+    const summaryEl = document.getElementById('trip-summary');
+    if (summaryEl) {
+        summaryEl.style.display = 'block';
+    }
     
     console.log('✅ Resumo agregado exibido');
 }
@@ -1751,12 +2038,6 @@ function hideTripSummary() {
     }
 }
 
-function hideTripSummary() {
-    const summaryEl = document.getElementById('trip-summary');
-    if (summaryEl) {
-        summaryEl.style.display = 'none';
-    }
-}
 // 
 // CARREGAMENTO DO CSV
 // 
@@ -1770,13 +2051,10 @@ Papa.parse('data.csv', {
     complete: function(results) {
         console.log('📄 CSV carregado!');
         console.log('🔍 Total de linhas no CSV:', results.data.length);
-        console.log('🔍 Primeiras 5 linhas:', results.data.slice(0, 5));
         
-        // ✅ Pular as primeiras 2 linhas de cabeçalho
         const data = results.data.slice(2);
         
         console.log('🔍 Dados após pular cabeçalho:', data.length, 'linhas');
-        console.log('🔍 Primeira linha de dados:', data[0]);
         
         let totalBoarding = 0;
         let totalAlighting = 0;
@@ -1786,30 +2064,10 @@ Papa.parse('data.csv', {
         let skippedCount = 0;
         
         data.forEach((row, index) => {
-            // ✅ LOG: Verificar estrutura da linha
-            if (index < 3) {
-                console.log(`🔍 Linha ${index}:`, {
-                    line: row[0],
-                    plate: row[1],
-                    busId: row[2],
-                    driver: row[3],
-                    direction: row[4],
-                    stationNumber: row[5],
-                    coords: row[6],
-                    time1: row[7],
-                    time2: row[8],
-                    boarding: row[9],
-                    alighting: row[10]
-                });
-            }
-            
             const latlng = parseLatLng(row[6]);
             
             if (!latlng) {
                 skippedCount++;
-                if (skippedCount <= 3) {
-                    console.warn(`⚠️ Linha ${index} pulada - coordenadas inválidas:`, row[6]);
-                }
                 return;
             }
             
@@ -1825,13 +2083,17 @@ Papa.parse('data.csv', {
                 initialPassengers = carried;
             }
             
+            const stationNumber = row[5] && row[5].trim() !== '' && row[5] !== '0' 
+                ? row[5] 
+                : (allStationsData.length + 1).toString();
+            
             const stationData = {
                 line: row[0] || 'N/A',
                 plate: row[1] || 'N/A',
                 busId: row[2] || 'N/A',
                 driver: row[3] || 'Não informado',
                 direction: row[4] || 'N/A',
-                stationNumber: row[5] || (index + 1),
+                stationNumber: stationNumber,
                 latlng: latlng,
                 time1: row[7] || 'N/A',
                 time2: row[8] || 'N/A',
@@ -1859,67 +2121,130 @@ Papa.parse('data.csv', {
             latlngs.push(latlng);
         });
         
-        console.log('✅ Processamento concluído:');
+        console.log('✅ Processamento do CSV concluído:');
         console.log(`   📊 ${processedCount} estações processadas`);
         console.log(`   ⚠️ ${skippedCount} linhas puladas`);
-        console.log(`   📍 allStationsData.length: ${allStationsData.length}`);
-        console.log(`   🎯 markers.length: ${markers.length}`);
         
-        const totalPassengers = initialPassengers + totalBoarding;
-        
-        // ✅ VERIFICAR SE HÁ DADOS ANTES DE CONTINUAR
         if (allStationsData.length === 0) {
-            console.error('❌ ERRO: Nenhuma estação foi carregada! Verifique o formato do CSV.');
+            console.error('❌ ERRO: Nenhuma estação foi carregada!');
             alert('⚠️ Erro ao carregar dados: Nenhuma estação válida encontrada no arquivo CSV.');
             return;
         }
         
         initializeClusterGroup();
         
-        // ✅ LOG: Antes de identificar viagens
-        console.log('🔍 Identificando viagens...');
         identifyTrips();
-        console.log('🔍 allTrips após identificação:', allTrips.length);
+        
+        // ✅ DEBUG: PROCURAR TODAS AS ESTAÇÕES 31 E 42 NO CSV
+        console.log('🔍 ==========================================');
+        console.log('🔍 PROCURANDO PARADAS 31 E 42 NO CSV:');
+        console.log('🔍 ==========================================');
+
+        const stations31 = [];
+        const stations42 = [];
+
+        allStationsData.forEach((station, index) => {
+            const num = parseInt(station.stationNumber);
+            
+            if (num === 31) {
+                stations31.push({
+                    index: index,
+                    coords: station.latlng,
+                    time: station.time1,
+                    line: station.line,
+                    direction: station.direction
+                });
+            }
+            
+            if (num === 42) {
+                stations42.push({
+                    index: index,
+                    coords: station.latlng,
+                    time: station.time1,
+                    line: station.line,
+                    direction: station.direction
+                });
+            }
+        });
+
+        console.log(`📍 Encontradas ${stations31.length} estações com número 31:`);
+        stations31.forEach(s => {
+            console.log(`   Est. 31 - ${s.line} ${s.direction} - ${s.time} - [${s.coords[0]}, ${s.coords[1]}]`);
+        });
+
+        console.log(`📍 Encontradas ${stations42.length} estações com número 42:`);
+        stations42.forEach(s => {
+            console.log(`   Est. 42 - ${s.line} ${s.direction} - ${s.time} - [${s.coords[0]}, ${s.coords[1]}]`);
+        });
+
+        console.log('🔍 ==========================================');
+        
+        // ✅ DEBUG: Verificar coordenadas de referência
+        console.log('📍 Coordenadas de Referência:');
+        console.log(`   P31 IDA: [${referencePoints['parada-31-ida'].lat}, ${referencePoints['parada-31-ida'].lng}]`);
+        console.log(`   P31 VOLTA: [${referencePoints['parada-31-volta'].lat}, ${referencePoints['parada-31-volta'].lng}]`);
+        console.log(`   P42 IDA: [${referencePoints['parada-42-ida'].lat}, ${referencePoints['parada-42-ida'].lng}]`);
+        console.log('🔍 ==========================================');
         
         populateTripFilter();
         displayAllRoutes();
         
-        // Calcular e exibir métricas
         const initialMetrics = calculateMetrics();
         updateMetricsDisplay(initialMetrics);
         
         calculateDetailedMetrics();
         updateDetailedDisplay();
         
-        // ✅ MOSTRAR RESUMO AGREGADO AO CARREGAR
         if (allTrips.length > 0) {
             showAllTripsSummary();
-        } else {
-            console.warn('⚠️ Nenhuma viagem identificada - resumo não será exibido');
         }
         
         updateVisualization(currentVisualizationMode);
         
+        let tripsTotalBoarding = 0;
+        let tripsTotalAlighting = 0;
+
+        allTrips.forEach(trip => {
+            tripsTotalBoarding += trip.totalBoarding;
+            tripsTotalAlighting += trip.totalAlighting;
+        });
+
+        const tripsStationCount = allTrips.reduce((sum, trip) => sum + trip.stationCount, 0);
+        const tripsAvgOccupancy = tripsStationCount > 0 ? Math.round(tripsTotalBoarding / tripsStationCount) : 0;
+
         const pointCountEl = document.getElementById('point-count');
+        const visibleCountEl = document.getElementById('visible-count');
         const totalBoardingEl = document.getElementById('total-boarding');
         const totalAlightingEl = document.getElementById('total-alighting');
-        const totalPassengersEl = document.getElementById('total-passengers');
         const avgOccupancyEl = document.getElementById('avg-occupancy');
         
-        if (pointCountEl) pointCountEl.textContent = markers.length;
-        if (totalBoardingEl) totalBoardingEl.textContent = totalBoarding;
-        if (totalAlightingEl) totalAlightingEl.textContent = totalAlighting;
-        if (totalPassengersEl) totalPassengersEl.textContent = totalPassengers;
-        if (avgOccupancyEl) avgOccupancyEl.textContent = markers.length > 0 ? Math.round(totalPassengers / markers.length) : 0;
+        if (pointCountEl) pointCountEl.textContent = tripsStationCount;
+        if (visibleCountEl) visibleCountEl.textContent = tripsStationCount;
+        if (totalBoardingEl) totalBoardingEl.textContent = tripsTotalBoarding;
+        if (totalAlightingEl) totalAlightingEl.textContent = tripsTotalAlighting;
+        if (avgOccupancyEl) avgOccupancyEl.textContent = tripsAvgOccupancy;
         
         console.log(`✅ ${markers.length} estações carregadas!`);
-        console.log(`📊 Passageiros iniciais: ${initialPassengers}`);
-        console.log(`📊 Total embarques: ${totalBoarding}`);
-        console.log(`📊 Total desembarques: ${totalAlighting}`);
-        console.log(`📊 Total transportados: ${totalPassengers}`);
+        console.log('📊 ==========================================');
+        console.log('📊 COMPARAÇÃO: CSV COMPLETO vs VIAGENS IDENTIFICADAS');
+        console.log('📊 ==========================================');
+        console.log(`📄 CSV Completo:`);
+        console.log(`   Estações: ${allStationsData.length}`);
+        console.log(`   Embarques: ${totalBoarding}`);
+        console.log(`   Desembarques: ${totalAlighting}`);
+        console.log(`🚌 Viagens Identificadas (${allTrips.length} viagens):`);
+        console.log(`   Estações: ${tripsStationCount}`);
+        console.log(`   Embarques: ${tripsTotalBoarding}`);
+        console.log(`   Desembarques: ${tripsTotalAlighting}`);
+        console.log(`   Média/estação: ${tripsAvgOccupancy}`);
+        console.log(`⚠️ Diferenças (estações não atribuídas):`);
+        console.log(`   Estações: ${allStationsData.length - tripsStationCount}`);
+        console.log(`   Embarques: ${totalBoarding - tripsTotalBoarding}`);
+        console.log(`   Desembarques: ${totalAlighting - tripsTotalAlighting}`);
+        console.log('📊 ==========================================');
     },
     error: function(error) {
         console.error('❌ ERRO ao carregar CSV:', error);
-        alert('⚠️ Erro ao carregar o arquivo data.csv. Verifique se o arquivo existe e está acessível.');
+        alert('⚠️ Erro ao carregar o arquivo data.csv.');
     }
 });

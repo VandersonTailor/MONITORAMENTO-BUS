@@ -43,49 +43,73 @@
         </details>
         
         <!-- ============================================ -->
-        <!-- SEÇÃO 2: MÉTRICAS DA PARADA 31 -->
+        <!-- SEÇÃO 2: MÉTRICAS DAS PARADAS 31 E 42 -->
         <!-- ============================================ -->
         <details class="control-section" open>
-            <summary class="section-title">📍 Métricas Parada 31</summary>
+            <summary class="section-title">📍 Métricas Paradas 31 e 42</summary>
             
             <div class="section-content">
-                <!-- Métrica 1: Mínima (Código 04) -->
+                <!-- Métrica 1: Mínima IDA (desembarques até P31) -->
                 <div class="metric-card-control metric-ida">
                     <div class="metric-header">
                         <span class="metric-icon-small">🟢</span>
-                        <span class="metric-title-small">Mínima (04)</span>
+                        <span class="metric-title-small">Mínima IDA</span>
                     </div>
                     <div class="metric-body">
                         <div class="metric-value-large" id="metric-minima-ida">0</div>
-                        <div class="metric-desc">Até parada 31</div>
+                        <div class="metric-desc">Desembarques até P31</div>
                     </div>
                 </div>
-                
-                <!-- Métrica 2: Máxima (Código 01) -->
-                <div class="metric-card-control metric-divisa">
+
+                <!-- Métrica 2: Máxima (total embarques) -->
+                <div class="metric-card-control metric-maxima">
                     <div class="metric-header">
                         <span class="metric-icon-small">🔴</span>
-                        <span class="metric-title-small">Máxima (01)</span>
+                        <span class="metric-title-small">Máxima</span>
+                    </div>
+                    <div class="metric-body">
+                        <div class="metric-value-large" id="metric-maxima">0</div>
+                        <div class="metric-desc">Total de embarques</div>
+                    </div>
+                </div>
+
+                <!-- Métrica 3: Divisa (desembarques até P31 na VOLTA) -->
+                <div class="metric-card-control metric-divisa">
+                    <div class="metric-header">
+                        <span class="metric-icon-small">🟡</span>
+                        <span class="metric-title-small">Divisa</span>
                     </div>
                     <div class="metric-body">
                         <div class="metric-value-large" id="metric-divisa">0</div>
-                        <div class="metric-desc">Até o final da linha</div>
+                        <div class="metric-desc">Desembarques até P31 (VOLTA)</div>
                     </div>
                 </div>
-                
-                <!-- Métrica 3: Divisa (Código 23) -->
-                <div class="metric-card-control metric-volta">
+
+                <!-- Métrica 4: Mínima VOLTA (embarques a partir da P31) -->
+                <div class="metric-card-control metric-minima-volta">
                     <div class="metric-header">
-                        <span class="metric-icon-small">🟡</span>
-                        <span class="metric-title-small">Divisa (23)</span>
+                        <span class="metric-icon-small">🟢</span>
+                        <span class="metric-title-small">Mínima VOLTA</span>
                     </div>
                     <div class="metric-body">
                         <div class="metric-value-large" id="metric-minima-volta">0</div>
-                        <div class="metric-desc">Até P31 na Volta</div>
+                        <div class="metric-desc">Embarques a partir da P31</div>
                     </div>
                 </div>
-                
-                <!-- Métrica 4: Isentos (Código 98) -->
+
+                <!-- ✅ NOVA MÉTRICA 5: Figueira VOLTA (embarques a partir da P42) -->
+                <div class="metric-card-control metric-figueira">
+                    <div class="metric-header">
+                        <span class="metric-icon-small">🟢</span>
+                        <span class="metric-title-small">Figueira VOLTA</span>
+                    </div>
+                    <div class="metric-body">
+                        <div class="metric-value-large" id="metric-figueira-volta">0</div>
+                        <div class="metric-desc">Embarques a partir da P42</div>
+                    </div>
+                </div>
+
+                <!-- Métrica 6: Isentos -->
                 <div class="metric-card-control metric-isento">
                     <div class="metric-header">
                         <span class="metric-icon-small">⚪</span>
@@ -229,14 +253,7 @@
                     <div class="summary-label-compact">Desembarques</div>
                 </div>
                 
-                <!-- Card 3: Passageiros -->
-                <div class="summary-card-compact summary-passengers">
-                    <div class="summary-icon-compact">👥</div>
-                    <div class="summary-value-compact" id="summary-passengers">0</div>
-                    <div class="summary-label-compact">Passageiros</div>
-                </div>
-                
-                <!-- Card 4: Estações -->
+                <!-- Card 3: Estações -->
                 <div class="summary-card-compact summary-stations">
                     <div class="summary-icon-compact">🚏</div>
                     <div class="summary-value-compact" id="summary-stations">0</div>
@@ -244,42 +261,43 @@
                 </div>
             </div>
             
-           <!-- Detalhes da viagem -->
-<div class="trip-details-compact">
-    <div class="detail-row-compact">
-        <span class="detail-icon-compact">🚗</span>
-        <span class="detail-label-compact">Placa:</span>
-        <span class="detail-value-compact" id="summary-plate">-</span>
-    </div>
-    
-    <div class="detail-row-compact">
-        <span class="detail-icon-compact">➡️</span>
-        <span class="detail-label-compact">Direção:</span>
-        <span class="detail-value-compact" id="summary-direction">-</span>
-    </div>
-    
-    <div class="detail-row-compact">
-        <span class="detail-icon-compact">⏰</span>
-        <span class="detail-label-compact">Período:</span>
-        <span class="detail-value-compact" id="summary-period">-</span>
-    </div>
-    
-    <div class="detail-row-compact">
-        <span class="detail-icon-compact">📊</span>
-        <span class="detail-label-compact">Média/Estação:</span>
-        <span class="detail-value-compact" id="summary-average">0</span>
-    </div>
-</div>
+            <!-- Detalhes da viagem -->
+            <div class="trip-details-compact">
+                <div class="detail-row-compact">
+                    <span class="detail-icon-compact">🚗</span>
+                    <span class="detail-label-compact">Placa:</span>
+                    <span class="detail-value-compact" id="summary-plate">-</span>
+                </div>
+                
+                <div class="detail-row-compact">
+                    <span class="detail-icon-compact">➡️</span>
+                    <span class="detail-label-compact">Direção:</span>
+                    <span class="detail-value-compact" id="summary-direction">-</span>
+                </div>
+                
+                <div class="detail-row-compact">
+                    <span class="detail-icon-compact">⏰</span>
+                    <span class="detail-label-compact">Período:</span>
+                    <span class="detail-value-compact" id="summary-period">-</span>
+                </div>
+                
+                <div class="detail-row-compact">
+                    <span class="detail-icon-compact">📊</span>
+                    <span class="detail-label-compact">Média/Estação:</span>
+                    <span class="detail-value-compact" id="summary-average">0</span>
+                </div>
+            </div>
 
-<!-- ✅ NOVA SEÇÃO: RESUMO DAS PORTAS -->
-<div class="doors-summary-compact">
-    <h4 style="margin: 0 0 10px 0; font-size: 13px; color: #666; display: flex; align-items: center; gap: 6px;">
-        <span>🚪</span> Movimentação por Porta
-    </h4>
-    <div class="doors-grid-compact" id="summary-doors">
-        <!-- Será preenchido dinamicamente -->
-    </div>
-</div>
+            <!-- ✅ SEÇÃO: RESUMO DAS PORTAS -->
+            <div class="doors-summary-compact">
+                <h4 style="margin: 0 0 10px 0; font-size: 13px; color: #666; display: flex; align-items: center; gap: 6px;">
+                    <span>🚪</span> Movimentação por Porta
+                </h4>
+                <div class="doors-grid-compact" id="summary-doors">
+                    <!-- Será preenchido dinamicamente -->
+                </div>
+            </div>
+        </div>
         
         <!-- ============================================ -->
         <!-- ESTATÍSTICAS GERAIS -->
