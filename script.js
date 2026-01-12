@@ -698,8 +698,7 @@ function calculateTripMetrics(tripId) {
         divisa: 0,
         minimaVolta: 0,
         figueiraVolta: 0,
-        maxima: 0,
-        isentos: 0
+        maxima: 0
     };
     
     let p31Index = -1;
@@ -742,75 +741,81 @@ function calculateTripMetrics(tripId) {
     // Processar métricas APENAS DESTA VIAGEM
     if (p31Index !== -1) {
         if (trip.direction === 'ida') {
-            // IDA: Mínima IDA (desembarques até P31)
+            // 1. Contar TOTAL de embarques na IDA
+            let totalEmbarquesIda = 0;
+            for (let i = 0; i < trip.stationIndices.length; i++) {
+                const stationIndex = trip.stationIndices[i];
+                const station = allStationsData[stationIndex];
+                totalEmbarquesIda += station.boarding;
+            }
+            
+            // 2. MÍNIMA IDA: Desembarques até P31
+            let minimaIdaTemp = 0;
             for (let i = 0; i <= p31Index; i++) {
                 const stationIndex = trip.stationIndices[i];
                 const station = allStationsData[stationIndex];
-                metrics.minimaIda += station.alighting;
+                minimaIdaTemp += station.alighting;
             }
+            metrics.minimaIda = minimaIdaTemp;
             
-            // ✅ IDA: MÁXIMA = Embarques até P31 - Desembarques até P31
-            let embarquesAteP31 = 0;
-            let desembarquesAteP31 = 0;
-            
-            for (let i = 0; i <= p31Index; i++) {
-                const stationIndex = trip.stationIndices[i];
-                const station = allStationsData[stationIndex];
-                embarquesAteP31 += station.boarding;
-                desembarquesAteP31 += station.alighting;
-            }
-            
-            metrics.maxima = embarquesAteP31 - desembarquesAteP31;
-            console.log(`   📊 [FILTRO] IDA - Embarques até P31: ${embarquesAteP31}`);
-            console.log(`   📊 [FILTRO] IDA - Desembarques até P31: ${desembarquesAteP31}`);
-            
-            // IDA: Figueira (embarques a partir da P42)
+            // 3. FIGUEIRA: Embarques DEPOIS da P42
+            let figueiraTemp = 0;
             if (p42Index !== -1) {
-                for (let i = p42Index; i < trip.stationIndices.length; i++) {
+                for (let i = p42Index + 1; i < trip.stationIndices.length; i++) {
                     const stationIndex = trip.stationIndices[i];
                     const station = allStationsData[stationIndex];
-                    metrics.figueiraVolta += station.boarding;
+                    figueiraTemp += station.boarding;
                 }
+                metrics.figueiraVolta = figueiraTemp;
+            } else {
+                console.warn(`⚠️ [FILTRO] P42 NÃO encontrada na ${trip.name}`);
             }
             
+            // 4. MÁXIMA IDA = Total - Figueira - Mínima IDA
+            metrics.maxima = totalEmbarquesIda - figueiraTemp - minimaIdaTemp;
+            
+            console.log(`   📊 [FILTRO] IDA - Total Embarques: ${totalEmbarquesIda}`);
+            console.log(`   📊 [FILTRO] IDA - Figueira (depois P42): ${figueiraTemp}`);
+            console.log(`   📊 [FILTRO] IDA - Mínima IDA (até P31): ${minimaIdaTemp}`);
+            console.log(`   🔴 [FILTRO] Máxima IDA: ${metrics.maxima}`);
+            
         } else if (trip.direction === 'volta') {
-            // VOLTA: Divisa (desembarques até P31)
+            // 1. Contar TOTAL de embarques na VOLTA
+            let totalEmbarquesVolta = 0;
+            for (let i = 0; i < trip.stationIndices.length; i++) {
+                const stationIndex = trip.stationIndices[i];
+                const station = allStationsData[stationIndex];
+                totalEmbarquesVolta += station.boarding;
+            }
+            
+            // 2. VOLTA: Divisa (desembarques até P31)
+            let divisaTemp = 0;
             for (let i = 0; i <= p31Index; i++) {
                 const stationIndex = trip.stationIndices[i];
                 const station = allStationsData[stationIndex];
-                metrics.divisa += station.alighting;
+                divisaTemp += station.alighting;
             }
+            metrics.divisa = divisaTemp;
             
-            // VOLTA: Mínima VOLTA (embarques a partir da P31)
+            // 3. VOLTA: Mínima VOLTA (embarques a partir da P31)
+            let minimaVoltaTemp = 0;
             for (let i = p31Index; i < trip.stationIndices.length; i++) {
                 const stationIndex = trip.stationIndices[i];
                 const station = allStationsData[stationIndex];
-                metrics.minimaVolta += station.boarding;
+                minimaVoltaTemp += station.boarding;
             }
+            metrics.minimaVolta = minimaVoltaTemp;
             
-            // ✅ VOLTA: MÁXIMA = Embarques até P31 - Desembarques até P31
-            let embarquesAteP31 = 0;
-            let desembarquesAteP31 = 0;
+            // 4. MÁXIMA VOLTA = Total - Mínima VOLTA - Divisa
+            metrics.maxima = totalEmbarquesVolta - minimaVoltaTemp - divisaTemp;
             
-            for (let i = 0; i <= p31Index; i++) {
-                const stationIndex = trip.stationIndices[i];
-                const station = allStationsData[stationIndex];
-                embarquesAteP31 += station.boarding;
-                desembarquesAteP31 += station.alighting;
-            }
-            
-            metrics.maxima = embarquesAteP31 - desembarquesAteP31;
-            console.log(`   📊 [FILTRO] VOLTA - Embarques até P31: ${embarquesAteP31}`);
-            console.log(`   📊 [FILTRO] VOLTA - Desembarques até P31: ${desembarquesAteP31}`);
+            console.log(`   📊 [FILTRO] VOLTA - Total Embarques: ${totalEmbarquesVolta}`);
+            console.log(`   📊 [FILTRO] VOLTA - Mínima VOLTA (a partir P31): ${minimaVoltaTemp}`);
+            console.log(`   🟡 [FILTRO] VOLTA - Divisa (desembarques até P31): ${divisaTemp}`);
+            console.log(`   🔴 [FILTRO] Máxima VOLTA: ${metrics.maxima}`);
         }
     } else {
         console.warn(`⚠️ [FILTRO] P31 NÃO encontrada na ${trip.name}`);
-    }
-    
-    // Isentos APENAS DESTA VIAGEM
-    const tripData = tariffMovementData[tripId];
-    if (tripData && tripData['98']) {
-        metrics.isentos = (tripData['98'].cash || 0) + (tripData['98'].card || 0);
     }
     
     // Log das métricas calculadas para esta viagem
@@ -820,7 +825,6 @@ function calculateTripMetrics(tripId) {
     console.log(`   🟡 Divisa: ${metrics.divisa}`);
     console.log(`   🟢 Mínima VOLTA: ${metrics.minimaVolta}`);
     console.log(`   🟢 Figueira: ${metrics.figueiraVolta}`);
-    console.log(`   ⚪ Isentos: ${metrics.isentos}`);
     
     return metrics;
 }
