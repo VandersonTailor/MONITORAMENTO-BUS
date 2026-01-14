@@ -33,6 +33,15 @@ const tariffTypes = {
     '98': { name: 'Isento', value: 0.00, color: '#9E9E9E', icon: '⚪' }
 };
 
+// 🚫 Estações excluídas dos cálculos
+const EXCLUDED_STATIONS = [149, 147, 1 , 2, 153, 148, 146];
+
+// Função auxiliar para verificar se estação deve ser ignorada
+function isStationExcluded(station) {
+    if (!station || !station.stationNumber) return false;
+    return EXCLUDED_STATIONS.includes(parseInt(station.stationNumber));
+}
+
 // 
 // DADOS DE MOVIMENTAÇÃO (EXTRAÍDOS DA IMAGEM)
 // 
@@ -223,7 +232,6 @@ function displayAllRoutes() {
         displayRoute(trip.id);
     });
 }
-
 // 
 // SISTEMA DE CORES
 // 
@@ -234,6 +242,11 @@ function getOccupancyColor(occupancy) {
 }
 
 function getMarkerColorByFlow(stationData, mode) {
+    // ✅ Proteção: Retornar cor neutra se estação estiver excluída
+    if (isStationExcluded(stationData)) {
+        return '#CCCCCC'; // Cinza claro para estações excluídas
+    }
+    
     switch(mode) {
         case 'boarding':
             if (stationData.boarding === 0) return '#E0E0E0';
@@ -265,6 +278,11 @@ function getMarkerColorByFlow(stationData, mode) {
 }
 
 function getMarkerSizeByFlow(stationData, mode) {
+    // ✅ Proteção: Retornar tamanho mínimo se estação estiver excluída
+    if (isStationExcluded(stationData)) {
+        return 3; // Tamanho muito pequeno para estações excluídas
+    }
+    
     let value;
     
     switch(mode) {
@@ -297,10 +315,9 @@ function getMarkerSizeByFlow(stationData, mode) {
 const referencePoints = {
     // Coordenadas reais extraídas do teu CSV (conforme log do console)
     'parada-31-ida': { lat: -30.078786, lng: -51.116670 },
-    'parada-31-volta': { lat:   -30.079075, lng: -51.116130 },
+    'parada-31-volta': { lat: -30.079075, lng: -51.116130 },
     'parada-42-ida': { lat: -30.094485, lng: -51.079701 },
     'parada-42-volta': { lat: -30.094761, lng: -51.080683 }
-      
 };
 
 function calculateDistance(lat1, lng1, lat2, lng2) {
@@ -321,6 +338,11 @@ function calculateDistance(lat1, lng1, lat2, lng2) {
 function determineDirection(stationLat, stationLng, stationNumber) {
     // ✅ LOG: Ver qual número de estação está sendo verificado
     const numStation = parseInt(stationNumber);
+    
+    // ✅ Proteção: Ignorar estações excluídas
+    if (EXCLUDED_STATIONS.includes(numStation)) {
+        return null;
+    }
     
     if (numStation !== 31) return null;
     
@@ -633,19 +655,25 @@ function calculateMetrics() {
             return;
         }
 
-        // Calcular isentos desta viagem
+        // ✅ Calcular isentos desta viagem (EXCLUINDO estações da lista)
         let isentosViagem = 0;
         trip.stationIndices.forEach(idx => {
-            isentosViagem += allStationsData[idx].door1Alighting || 0;
+            const st = allStationsData[idx];
+            if (!isStationExcluded(st)) {
+                isentosViagem += st.door1Alighting || 0;
+            }
         });
         
         // ✅ Somar isentos desta viagem ao total
         metrics.isentos += isentosViagem;
 
-        // Calcular total de embarques da viagem
+        // ✅ Calcular total de embarques da viagem (EXCLUINDO estações da lista)
         let totalEmbarquesViagem = 0;
         trip.stationIndices.forEach(idx => {
-            totalEmbarquesViagem += allStationsData[idx].boarding || 0;
+            const st = allStationsData[idx];
+            if (!isStationExcluded(st)) {
+                totalEmbarquesViagem += st.boarding || 0;
+            }
         });
 
         /* ===============================
@@ -658,32 +686,45 @@ function calculateMetrics() {
             
             for (let i = 0; i <= p31Index; i++) {
                 const st = allStationsData[trip.stationIndices[i]];
+                // ✅ Pular estações excluídas
+                if (isStationExcluded(st)) continue;
+                
                 embarquesAteP31 += st.boarding || 0;
                 desembAteP31 += st.alighting || 0;
                 isentosAteP31 += st.door1Alighting || 0;
             }
             
-            // Calcular isentos DEPOIS de P31
-            let isentosDepoisP31 = isentosViagem - isentosAteP31;
+            // ✅ Calcular embarques e isentos DEPOIS de P31 (EXCLUINDO estações)
+            let embarquesDepoisP31 = 0;
+            let isentosDepoisP31 = 0;
+            for (let i = p31Index + 1; i < trip.stationIndices.length; i++) {
+                const st = allStationsData[trip.stationIndices[i]];
+                // ✅ Pular estações excluídas
+                if (isStationExcluded(st)) continue;
+                
+                embarquesDepoisP31 += st.boarding || 0;
+                isentosDepoisP31 += st.door1Alighting || 0;
+            }
             
             // 1. Mínima
             const minimaIda = desembAteP31 - isentosAteP31;
             metrics.minima += minimaIda;
 
-            // 2. Figueira (embarques entre P42+1 e P31)
+            // 2. Figueira (embarques entre P42+1 e P31) - EXCLUINDO estações
             let figueira = 0;
             if (p42Index !== -1 && p42Index < p31Index) {
                 for (let i = p42Index + 1; i <= p31Index; i++) {
-                    figueira += allStationsData[trip.stationIndices[i]].boarding || 0;
+                    const st = allStationsData[trip.stationIndices[i]];
+                    // ✅ Pular estações excluídas
+                    if (isStationExcluded(st)) continue;
+                    
+                    figueira += st.boarding || 0;
                 }
             }
             metrics.figueira += figueira;
 
             // 3. Divisa
-            let divisaIda = 0;
-            for (let i = p31Index + 1; i < trip.stationIndices.length; i++) {
-                divisaIda += allStationsData[trip.stationIndices[i]].boarding || 0;
-            }
+            const divisaIda = embarquesDepoisP31;
             metrics.divisa += divisaIda;
 
             // 4. Máxima
@@ -694,7 +735,7 @@ function calculateMetrics() {
             console.log(`   Até P31: ${embarquesAteP31} emb, ${desembAteP31} desemb`);
             console.log(`   🟢 Mínima (desemb - isentos): ${desembAteP31} - ${isentosAteP31} = ${minimaIda}`);
             console.log(`   🟡 Figueira (emb P42→P31): ${figueira}`);
-            console.log(`   🔵 Divisa (emb depois P31): ${divisaIda}`);
+            console.log(`   🔵 Divisa (emb depois P31): ${embarquesDepoisP31} = ${divisaIda}`);
             console.log(`   ⚪ Isentos: ${isentosViagem} (${isentosAteP31} até P31 + ${isentosDepoisP31} depois)`);
             console.log(`   🔴 Máxima: ${embarquesAteP31} - ${figueira} - ${minimaIda} - ${isentosAteP31} - ${isentosDepoisP31} = ${maximaIda}`);
             console.log(`   ✅ Verificação: ${maximaIda} + ${figueira} + ${minimaIda} + ${divisaIda} + ${isentosViagem} = ${maximaIda + figueira + minimaIda + divisaIda + isentosViagem} (esperado: ${totalEmbarquesViagem})`);
@@ -710,39 +751,54 @@ function calculateMetrics() {
             
             for (let i = 0; i <= p31Index; i++) {
                 const st = allStationsData[trip.stationIndices[i]];
+                // ✅ Pular estações excluídas
+                if (isStationExcluded(st)) continue;
+                
                 embarquesAteP31 += st.boarding || 0;
                 desembAteP31 += st.alighting || 0;
                 isentosAteP31 += st.door1Alighting || 0;
             }
             
-            // Calcular isentos DEPOIS de P31
+            // Calcular isentos DEPOIS de P31 (EXCLUINDO estações)
             let isentosDepoisP31 = 0;
             for (let i = p31Index + 1; i < trip.stationIndices.length; i++) {
-                isentosDepoisP31 += allStationsData[trip.stationIndices[i]].door1Alighting || 0;
+                const st = allStationsData[trip.stationIndices[i]];
+                // ✅ Pular estações excluídas
+                if (isStationExcluded(st)) continue;
+                
+                isentosDepoisP31 += st.door1Alighting || 0;
             }
             
             // 1. Divisa
             const divisaVolta = desembAteP31 - isentosAteP31;
             metrics.divisa += divisaVolta;
 
-            // 2. ✅ Figueira VOLTA (desembarques entre P31+1 e P42)
+            // 2. Figueira VOLTA (EXCLUINDO estações)
             let figueiraVolta = 0;
             if (p42Index !== -1 && p42Index > p31Index) {
                 for (let i = p31Index + 1; i <= p42Index; i++) {
-                    figueiraVolta += allStationsData[trip.stationIndices[i]].alighting || 0;
+                    const st = allStationsData[trip.stationIndices[i]];
+                    // ✅ Pular estações excluídas
+                    if (isStationExcluded(st)) continue;
+                    
+                    figueiraVolta += st.alighting || 0;
                 }
             }
             metrics.figueira += figueiraVolta;
 
-            // 3. Mínima
+            // 3. Mínima (EXCLUINDO estações)
             let embarquesDepoisP31 = 0;
             for (let i = p31Index + 1; i < trip.stationIndices.length; i++) {
-                embarquesDepoisP31 += allStationsData[trip.stationIndices[i]].boarding || 0;
+                const st = allStationsData[trip.stationIndices[i]];
+                // ✅ Pular estações excluídas
+                if (isStationExcluded(st)) continue;
+                
+                embarquesDepoisP31 += st.boarding || 0;
             }
             const minimaVolta = embarquesDepoisP31 - isentosDepoisP31;
             metrics.minima += minimaVolta;
 
-            // 4. ✅ Máxima (SUBTRAI Figueira VOLTA)
+            // 4. Máxima
             const maximaVolta = embarquesAteP31 - desembAteP31 - figueiraVolta;
             metrics.maxima += maximaVolta;
 
@@ -825,16 +881,22 @@ function calculateTripMetrics(tripId) {
         return metrics;
     }
 
-    // ✅ Calcular isentos TOTAIS desta viagem
+    // ✅ Calcular isentos TOTAIS desta viagem (EXCLUINDO estações)
     let isentosViagem = 0;
     trip.stationIndices.forEach(idx => {
-        isentosViagem += allStationsData[idx].door1Alighting || 0;
+        const st = allStationsData[idx];
+        if (!isStationExcluded(st)) {
+            isentosViagem += st.door1Alighting || 0;
+        }
     });
 
-    // Total de embarques da viagem
+    // ✅ Total de embarques da viagem (EXCLUINDO estações)
     let totalEmbarquesViagem = 0;
     trip.stationIndices.forEach(idx => {
-        totalEmbarquesViagem += allStationsData[idx].boarding || 0;
+        const st = allStationsData[idx];
+        if (!isStationExcluded(st)) {
+            totalEmbarquesViagem += st.boarding || 0;
+        }
     });
 
     /* ===============================
@@ -847,13 +909,25 @@ function calculateTripMetrics(tripId) {
         
         for (let i = 0; i <= p31Index; i++) {
             const st = allStationsData[trip.stationIndices[i]];
+            // ✅ Pular estações excluídas
+            if (isStationExcluded(st)) continue;
+            
             embarquesAteP31 += st.boarding || 0;
             desembAteP31 += st.alighting || 0;
             isentosAteP31 += st.door1Alighting || 0;
         }
         
-        // ✅ Calcular isentos DEPOIS de P31
-        let isentosDepoisP31 = isentosViagem - isentosAteP31;
+        // ✅ Calcular embarques e isentos DEPOIS de P31 (EXCLUINDO estações)
+        let embarquesDepoisP31 = 0;
+        let isentosDepoisP31 = 0;
+        for (let i = p31Index + 1; i < trip.stationIndices.length; i++) {
+            const st = allStationsData[trip.stationIndices[i]];
+            // ✅ Pular estações excluídas
+            if (isStationExcluded(st)) continue;
+            
+            embarquesDepoisP31 += st.boarding || 0;
+            isentosDepoisP31 += st.door1Alighting || 0;
+        }
         
         // ✅ Categoria Isentos: TODOS os isentos
         metrics.isentos = isentosViagem;
@@ -861,23 +935,23 @@ function calculateTripMetrics(tripId) {
         // 1. Mínima
         metrics.minima = desembAteP31 - isentosAteP31;
 
-        // 2. Figueira
+        // 2. Figueira (EXCLUINDO estações)
         let figueira = 0;
         if (p42Index !== -1 && p42Index < p31Index) {
             for (let i = p42Index + 1; i <= p31Index; i++) {
-                figueira += allStationsData[trip.stationIndices[i]].boarding || 0;
+                const st = allStationsData[trip.stationIndices[i]];
+                // ✅ Pular estações excluídas
+                if (isStationExcluded(st)) continue;
+                
+                figueira += st.boarding || 0;
             }
         }
         metrics.figueira = figueira;
 
-        // 3. Divisa
-        let divisaIda = 0;
-        for (let i = p31Index + 1; i < trip.stationIndices.length; i++) {
-            divisaIda += allStationsData[trip.stationIndices[i]].boarding || 0;
-        }
-        metrics.divisa = divisaIda;
+        // 3. ✅ Divisa (NÃO subtrai isentos)
+        metrics.divisa = embarquesDepoisP31;
 
-        // 4. Máxima
+        // 4. ✅ Máxima (SUBTRAI isentos depois P31)
         metrics.maxima = embarquesAteP31 - figueira - metrics.minima - isentosAteP31 - isentosDepoisP31;
     }
 
@@ -891,15 +965,22 @@ function calculateTripMetrics(tripId) {
         
         for (let i = 0; i <= p31Index; i++) {
             const st = allStationsData[trip.stationIndices[i]];
+            // ✅ Pular estações excluídas
+            if (isStationExcluded(st)) continue;
+            
             embarquesAteP31 += st.boarding || 0;
             desembAteP31 += st.alighting || 0;
             isentosAteP31 += st.door1Alighting || 0;
         }
         
-        // Calcular isentos DEPOIS de P31
+        // Calcular isentos DEPOIS de P31 (EXCLUINDO estações)
         let isentosDepoisP31 = 0;
         for (let i = p31Index + 1; i < trip.stationIndices.length; i++) {
-            isentosDepoisP31 += allStationsData[trip.stationIndices[i]].door1Alighting || 0;
+            const st = allStationsData[trip.stationIndices[i]];
+            // ✅ Pular estações excluídas
+            if (isStationExcluded(st)) continue;
+            
+            isentosDepoisP31 += st.door1Alighting || 0;
         }
         
         // ✅ Categoria Isentos: TODOS os isentos
@@ -908,19 +989,27 @@ function calculateTripMetrics(tripId) {
         // 1. Divisa
         metrics.divisa = desembAteP31 - isentosAteP31;
 
-        // 2. ✅ Figueira VOLTA (desembarques entre P31+1 e P42)
+        // 2. ✅ Figueira VOLTA (EXCLUINDO estações)
         let figueiraVolta = 0;
         if (p42Index !== -1 && p42Index > p31Index) {
             for (let i = p31Index + 1; i <= p42Index; i++) {
-                figueiraVolta += allStationsData[trip.stationIndices[i]].alighting || 0;
+                const st = allStationsData[trip.stationIndices[i]];
+                // ✅ Pular estações excluídas
+                if (isStationExcluded(st)) continue;
+                
+                figueiraVolta += st.alighting || 0;
             }
         }
         metrics.figueira = figueiraVolta;
 
-        // 3. Mínima
+        // 3. Mínima (EXCLUINDO estações)
         let embarquesDepoisP31 = 0;
         for (let i = p31Index + 1; i < trip.stationIndices.length; i++) {
-            embarquesDepoisP31 += allStationsData[trip.stationIndices[i]].boarding || 0;
+            const st = allStationsData[trip.stationIndices[i]];
+            // ✅ Pular estações excluídas
+            if (isStationExcluded(st)) continue;
+            
+            embarquesDepoisP31 += st.boarding || 0;
         }
         metrics.minima = embarquesDepoisP31 - isentosDepoisP31;
 
@@ -938,6 +1027,7 @@ function calculateTripMetrics(tripId) {
 
     return metrics;
 }
+
 function calculateDetailedMetrics() {
     const tariffMovementData = {
         byType: {},
@@ -951,8 +1041,11 @@ function calculateDetailedMetrics() {
     
     let totalDesembarquesPorta1 = 0;
     
-    // ✅ ITERAR POR TODAS AS 314 ESTAÇÕES DO CSV (não só das viagens)
+    // ✅ ITERAR POR TODAS AS ESTAÇÕES (EXCLUINDO AS DA LISTA)
     allStationsData.forEach(station => {
+        // ✅ PULAR ESTAÇÕES EXCLUÍDAS
+        if (isStationExcluded(station)) return;
+        
         // Contar desembarques pela porta 1 (ISENTOS)
         if (station.door1Alighting) {
             totalDesembarquesPorta1 += station.door1Alighting;
@@ -989,7 +1082,7 @@ function calculateDetailedMetrics() {
     });
     
     console.log('💰 Métricas detalhadas calculadas');
-    console.log(`   ⚪ Isentos (desembarques porta 1 - TODAS as 314 estações): ${totalDesembarquesPorta1}`);
+    console.log(`   ⚪ Isentos (desembarques porta 1 - SEM estações excluídas): ${totalDesembarquesPorta1}`);
     console.log('   📊 Tarifas:', tariffMovementData);
     console.log('   💳 Pagamentos:', paymentData);
     
@@ -1253,6 +1346,11 @@ function formatDoorInfo(boarding, alighting) {
 }
 
 function createPopupContent(data) {
+    // ✅ NÃO CRIAR POPUP PARA ESTAÇÕES EXCLUÍDAS
+    if (isStationExcluded(data)) {
+        return '<div style="padding: 10px; text-align: center; color: #999;">🚫 Estação excluída</div>';
+    }
+    
     const occupancyStatus = data.occupancy >= 100 ? '⚠️ LOTADO' : 
                            data.occupancy >= 70 ? '⚠️ Moderado' : 
                            '✅ Confortável';
@@ -1316,7 +1414,6 @@ function createPopupContent(data) {
         </div>
     `;
 }
-
 function closeAllPopups() {
     markers.forEach(m => m.closePopup());
 }
@@ -1370,6 +1467,11 @@ function getMarkerOffset(stationIndex, allStations) {
 // CRIAR MARCADOR
 // 
 function createInteractiveMarker(latlng, stationData, index) {
+    // ✅ NÃO CRIAR MARCADOR PARA ESTAÇÕES EXCLUÍDAS
+    if (isStationExcluded(stationData)) {
+        return null;
+    }
+    
     const color = getMarkerColorByFlow(stationData, currentVisualizationMode);
     const size = getMarkerSizeByFlow(stationData, currentVisualizationMode);
     
@@ -1591,7 +1693,6 @@ function createInteractiveMarker(latlng, stationData, index) {
     
     return marker;
 }
-
 // 
 // CLUSTERING
 // 
@@ -1695,7 +1796,11 @@ function updateTopBoarding() {
     
     const visibleStations = allStationsData
         .map((station, index) => ({ ...station, arrayIndex: index }))
-        .filter((station, index) => shouldShowStation(index) && station.boarding > 0);
+        .filter((station, index) => {
+            // ✅ Excluir estações da lista
+            if (isStationExcluded(station)) return false;
+            return shouldShowStation(index) && station.boarding > 0;
+        });
     
     const sortedByBoarding = visibleStations
         .sort((a, b) => b.boarding - a.boarding)
@@ -1737,7 +1842,11 @@ function updateTopAlighting() {
     
     const visibleStations = allStationsData
         .map((station, index) => ({ ...station, arrayIndex: index }))
-        .filter((station, index) => shouldShowStation(index) && station.alighting > 0);
+        .filter((station, index) => {
+            // ✅ Excluir estações da lista
+            if (isStationExcluded(station)) return false;
+            return shouldShowStation(index) && station.alighting > 0;
+        });
     
     const sortedByAlighting = visibleStations
         .sort((a, b) => b.alighting - a.alighting)
@@ -1779,7 +1888,11 @@ function updateNoMovementStations() {
     
     const visibleStations = allStationsData
         .map((station, index) => ({ ...station, arrayIndex: index }))
-        .filter((station, index) => shouldShowStation(index));
+        .filter((station, index) => {
+            // ✅ Excluir estações da lista
+            if (isStationExcluded(station)) return false;
+            return shouldShowStation(index);
+        });
     
     const noMovement = visibleStations.filter(station => station.boarding === 0 && station.alighting === 0);
     
@@ -1804,7 +1917,6 @@ function updateNoMovementStations() {
     
     container.innerHTML = html;
 }
-
 // 
 // ATUALIZAR VISUALIZAÇÃO
 // 
@@ -1813,7 +1925,8 @@ function updateVisualization(mode) {
     currentVisualizationMode = mode || 'both';
     
     markers.forEach(marker => {
-        if (map.hasLayer(marker)) {
+        // ✅ VERIFICAR SE MARCADOR NÃO É NULL ANTES DE TENTAR REMOVER
+        if (marker && map.hasLayer(marker)) {
             map.removeLayer(marker);
         }
     });
@@ -1821,11 +1934,18 @@ function updateVisualization(mode) {
     const visibleMarkers = [];
     
     allStationsData.forEach((stationData, index) => {
+        // ✅ VERIFICAR SE ESTAÇÃO ESTÁ EXCLUÍDA
+        if (isStationExcluded(stationData)) return;
+        
         if (!shouldShowStation(index)) return;
         
         const newMarker = createInteractiveMarker(stationData.latlng, stationData, index);
-        markers[index] = newMarker;
-        visibleMarkers.push(newMarker);
+        
+        // ✅ SÓ ADICIONAR SE MARCADOR FOI CRIADO (NÃO É NULL)
+        if (newMarker) {
+            markers[index] = newMarker;
+            visibleMarkers.push(newMarker);
+        }
     });
     
     visibleMarkers.forEach(marker => marker.addTo(map));
@@ -2014,22 +2134,37 @@ function showTripSummary(tripId) {
         updateMetricsPanel(metrics);
     }
     
-    const avgPerStation = trip.stationCount > 0 ? Math.round(trip.totalBoarding / trip.stationCount) : 0;
+    // ✅ RECALCULAR TOTAIS EXCLUINDO ESTAÇÕES
+    let totalBoarding = 0;
+    let totalAlighting = 0;
+    let stationCount = 0;
+    
+    trip.stationIndices.forEach(idx => {
+        const st = allStationsData[idx];
+        if (!isStationExcluded(st)) {
+            totalBoarding += st.boarding || 0;
+            totalAlighting += st.alighting || 0;
+            stationCount++;
+        }
+    });
+    
+    const avgPerStation = stationCount > 0 ? Math.round(totalBoarding / stationCount) : 0;
     
     const startTime = trip.actualStartTime ? trip.actualStartTime.split(' ')[1].substring(0, 5) : 'N/A';
     const endTime = trip.actualEndTime ? trip.actualEndTime.split(' ')[1].substring(0, 5) : 'N/A';
     
     const directionFormatted = trip.direction === 'ida' ? '➡️ IDA' : '⬅️ VOLTA';
     
-    document.getElementById('summary-boarding').textContent = trip.totalBoarding;
-    document.getElementById('summary-alighting').textContent = trip.totalAlighting;
-    document.getElementById('summary-stations').textContent = trip.stationCount;
+    // ✅ USAR VALORES RECALCULADOS (SEM ESTAÇÕES EXCLUÍDAS)
+    document.getElementById('summary-boarding').textContent = totalBoarding;
+    document.getElementById('summary-alighting').textContent = totalAlighting;
+    document.getElementById('summary-stations').textContent = stationCount;
     document.getElementById('summary-plate').textContent = trip.plate;
     document.getElementById('summary-direction').textContent = directionFormatted;
     document.getElementById('summary-period').textContent = `${startTime} → ${endTime}`;
     document.getElementById('summary-average').textContent = avgPerStation;
     
-    // ✅ EXIBIR PORTAS COM MÉTRICAS CALCULADAS
+    // ✅ EXIBIR PORTAS COM MÉTRICAS CALCULADAS (EXCLUINDO ESTAÇÕES)
     const doorsContainer = document.getElementById('summary-doors');
     if (doorsContainer && doorMetrics) {
         let doorsHTML = '';
@@ -2104,11 +2239,25 @@ function showAllTripsSummary() {
         door6: { boarding: 0, alighting: 0 }
     };
     
-    // ✅ AGREGAR MÉTRICAS DE TODAS AS VIAGENS
+    // ✅ AGREGAR MÉTRICAS DE TODAS AS VIAGENS (EXCLUINDO ESTAÇÕES)
     allTrips.forEach(trip => {
-        totalBoarding += trip.totalBoarding;
-        totalAlighting += trip.totalAlighting;
-        totalStations += trip.stationCount;
+        // ✅ RECALCULAR TOTAIS EXCLUINDO ESTAÇÕES
+        let tripBoarding = 0;
+        let tripAlighting = 0;
+        let tripStationCount = 0;
+        
+        trip.stationIndices.forEach(idx => {
+            const st = allStationsData[idx];
+            if (!isStationExcluded(st)) {
+                tripBoarding += st.boarding || 0;
+                tripAlighting += st.alighting || 0;
+                tripStationCount++;
+            }
+        });
+        
+        totalBoarding += tripBoarding;
+        totalAlighting += tripAlighting;
+        totalStations += tripStationCount;
         
         if (trip.plate && !plates.includes(trip.plate)) {
             plates.push(trip.plate);
@@ -2121,7 +2270,7 @@ function showAllTripsSummary() {
             latestTime = trip.actualEndTime;
         }
         
-        // ✅ CALCULAR PORTAS DESTA VIAGEM
+        // ✅ CALCULAR PORTAS DESTA VIAGEM (já exclui estações se calculateDoorMetricsByTrip estiver ajustado)
         const tripDoorMetrics = calculateDoorMetricsByTrip(trip.id);
         if (tripDoorMetrics) {
             Object.keys(tripDoorMetrics).forEach(doorKey => {
@@ -2262,6 +2411,14 @@ Papa.parse('data.csv', {
         let skippedCount = 0;
         
         data.forEach((row, index) => {
+            // ✅ VERIFICAR SE ESTAÇÃO DEVE SER EXCLUÍDA (ANTES DE PROCESSAR)
+            const stationNum = parseInt(row[5]);
+            if (EXCLUDED_STATIONS.includes(stationNum)) {
+                skippedCount++;
+                console.log(`🚫 Estação ${stationNum} excluída do carregamento`);
+                return; // Pular esta estação completamente
+            }
+            
             const latlng = parseLatLng(row[6]);
             
             if (!latlng) {
@@ -2285,30 +2442,30 @@ Papa.parse('data.csv', {
                 ? row[5] 
                 : (allStationsData.length + 1).toString();
             
-           const stationData = {
-    line: row[0] || 'N/A',
-    plate: row[1] || 'N/A',
-    busId: row[2] || 'N/A',
-    driver: row[3] || 'Não informado',
-    direction: row[4] || 'N/A',
-    stationNumber: stationNumber,
-    latlng: latlng,
-    time1: row[7] || 'N/A',
-    time2: row[8] || 'N/A',
-    boarding: boarding,
-    alighting: alighting,
-    carried: carried,
-    occupancy: occupancy,
-    door1Alighting: parseNumber(row[14]),  // ✅ NOVO: Desembarques porta 1
-    doors: [
-        { boarding: parseNumber(row[13]), alighting: parseNumber(row[14]) },  // Porta 1
-        { boarding: parseNumber(row[15]), alighting: parseNumber(row[16]) },  // Porta 2
-        { boarding: parseNumber(row[17]), alighting: parseNumber(row[18]) },  // Porta 3
-        { boarding: parseNumber(row[19]), alighting: parseNumber(row[20]) },  // Porta 4
-        { boarding: parseNumber(row[21]), alighting: parseNumber(row[22]) },  // Porta 5
-        { boarding: parseNumber(row[23]), alighting: parseNumber(row[24]) }   // Porta 6
-    ]
-};
+            const stationData = {
+                line: row[0] || 'N/A',
+                plate: row[1] || 'N/A',
+                busId: row[2] || 'N/A',
+                driver: row[3] || 'Não informado',
+                direction: row[4] || 'N/A',
+                stationNumber: stationNumber,
+                latlng: latlng,
+                time1: row[7] || 'N/A',
+                time2: row[8] || 'N/A',
+                boarding: boarding,
+                alighting: alighting,
+                carried: carried,
+                occupancy: occupancy,
+                door1Alighting: parseNumber(row[14]),
+                doors: [
+                    { boarding: parseNumber(row[13]), alighting: parseNumber(row[14]) },
+                    { boarding: parseNumber(row[15]), alighting: parseNumber(row[16]) },
+                    { boarding: parseNumber(row[17]), alighting: parseNumber(row[18]) },
+                    { boarding: parseNumber(row[19]), alighting: parseNumber(row[20]) },
+                    { boarding: parseNumber(row[21]), alighting: parseNumber(row[22]) },
+                    { boarding: parseNumber(row[23]), alighting: parseNumber(row[24]) }
+                ]
+            };
             
             allStationsData.push(stationData);
             
@@ -2316,13 +2473,17 @@ Papa.parse('data.csv', {
             totalAlighting += alighting;
             
             const marker = createInteractiveMarker(latlng, stationData, allStationsData.length - 1);
-            markers.push(marker);
-            latlngs.push(latlng);
+            
+            // ✅ SÓ ADICIONAR SE MARCADOR FOI CRIADO (NÃO É NULL)
+            if (marker) {
+                markers.push(marker);
+                latlngs.push(latlng);
+            }
         });
         
         console.log('✅ Processamento do CSV concluído:');
         console.log(`   📊 ${processedCount} estações processadas`);
-        console.log(`   ⚠️ ${skippedCount} linhas puladas`);
+        console.log(`   ⚠️ ${skippedCount} linhas puladas (incluindo estações excluídas)`);
         
         if (allStationsData.length === 0) {
             console.error('❌ ERRO: Nenhuma estação foi carregada!');
