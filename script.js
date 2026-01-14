@@ -666,11 +666,11 @@ function calculateMetrics() {
             // Calcular isentos DEPOIS de P31
             let isentosDepoisP31 = isentosViagem - isentosAteP31;
             
-            // 1. Mínima (subtrai isentos até P31)
+            // 1. Mínima
             const minimaIda = desembAteP31 - isentosAteP31;
             metrics.minima += minimaIda;
 
-            // 2. Figueira
+            // 2. Figueira (embarques entre P42+1 e P31)
             let figueira = 0;
             if (p42Index !== -1 && p42Index < p31Index) {
                 for (let i = p42Index + 1; i <= p31Index; i++) {
@@ -686,7 +686,7 @@ function calculateMetrics() {
             }
             metrics.divisa += divisaIda;
 
-            // 4. ✅ Máxima (subtrai isentos até P31 E isentos depois P31)
+            // 4. Máxima
             const maximaIda = embarquesAteP31 - figueira - minimaIda - isentosAteP31 - isentosDepoisP31;
             metrics.maxima += maximaIda;
 
@@ -721,11 +721,20 @@ function calculateMetrics() {
                 isentosDepoisP31 += allStationsData[trip.stationIndices[i]].door1Alighting || 0;
             }
             
-            // 1. Divisa (subtrai isentos até P31)
+            // 1. Divisa
             const divisaVolta = desembAteP31 - isentosAteP31;
             metrics.divisa += divisaVolta;
 
-            // 2. Mínima (subtrai isentos depois P31)
+            // 2. ✅ Figueira VOLTA (desembarques entre P31+1 e P42)
+            let figueiraVolta = 0;
+            if (p42Index !== -1 && p42Index > p31Index) {
+                for (let i = p31Index + 1; i <= p42Index; i++) {
+                    figueiraVolta += allStationsData[trip.stationIndices[i]].alighting || 0;
+                }
+            }
+            metrics.figueira += figueiraVolta;
+
+            // 3. Mínima
             let embarquesDepoisP31 = 0;
             for (let i = p31Index + 1; i < trip.stationIndices.length; i++) {
                 embarquesDepoisP31 += allStationsData[trip.stationIndices[i]].boarding || 0;
@@ -733,17 +742,18 @@ function calculateMetrics() {
             const minimaVolta = embarquesDepoisP31 - isentosDepoisP31;
             metrics.minima += minimaVolta;
 
-            // 3. Máxima (NÃO subtrai isentos - eles já foram subtraídos na Divisa)
-            const maximaVolta = embarquesAteP31 - desembAteP31;
+            // 4. ✅ Máxima (SUBTRAI Figueira VOLTA)
+            const maximaVolta = embarquesAteP31 - desembAteP31 - figueiraVolta;
             metrics.maxima += maximaVolta;
 
             console.log(`📊 ${trip.name} (${totalEmbarquesViagem} embarques):`);
             console.log(`   Até P31: ${embarquesAteP31} emb, ${desembAteP31} desemb`);
             console.log(`   🟡 Divisa (desemb - isentos): ${desembAteP31} - ${isentosAteP31} = ${divisaVolta}`);
+            console.log(`   🟡 Figueira VOLTA (desemb P31→P42): ${figueiraVolta}`);
             console.log(`   🟢 Mínima: ${embarquesDepoisP31} emb - ${isentosDepoisP31} isentos = ${minimaVolta}`);
-            console.log(`   🔴 Máxima: ${embarquesAteP31} - ${desembAteP31} = ${maximaVolta}`);
+            console.log(`   🔴 Máxima: ${embarquesAteP31} - ${desembAteP31} - ${figueiraVolta} = ${maximaVolta}`);
             console.log(`   ⚪ Isentos: ${isentosViagem} (${isentosAteP31} até P31 + ${isentosDepoisP31} depois)`);
-            console.log(`   ✅ Verificação: ${maximaVolta} + ${divisaVolta} + ${minimaVolta} + ${isentosViagem} = ${maximaVolta + divisaVolta + minimaVolta + isentosViagem} (esperado: ${totalEmbarquesViagem})`);
+            console.log(`   ✅ Verificação: ${maximaVolta} + ${divisaVolta} + ${figueiraVolta} + ${minimaVolta} + ${isentosViagem} = ${maximaVolta + divisaVolta + figueiraVolta + minimaVolta + isentosViagem} (esperado: ${totalEmbarquesViagem})`);
         }
     });
 
@@ -867,7 +877,7 @@ function calculateTripMetrics(tripId) {
         }
         metrics.divisa = divisaIda;
 
-        // 4. ✅ Máxima (subtrai isentos até P31 E isentos depois P31)
+        // 4. Máxima
         metrics.maxima = embarquesAteP31 - figueira - metrics.minima - isentosAteP31 - isentosDepoisP31;
     }
 
@@ -898,18 +908,24 @@ function calculateTripMetrics(tripId) {
         // 1. Divisa
         metrics.divisa = desembAteP31 - isentosAteP31;
 
-        // 2. Mínima
+        // 2. ✅ Figueira VOLTA (desembarques entre P31+1 e P42)
+        let figueiraVolta = 0;
+        if (p42Index !== -1 && p42Index > p31Index) {
+            for (let i = p31Index + 1; i <= p42Index; i++) {
+                figueiraVolta += allStationsData[trip.stationIndices[i]].alighting || 0;
+            }
+        }
+        metrics.figueira = figueiraVolta;
+
+        // 3. Mínima
         let embarquesDepoisP31 = 0;
         for (let i = p31Index + 1; i < trip.stationIndices.length; i++) {
             embarquesDepoisP31 += allStationsData[trip.stationIndices[i]].boarding || 0;
         }
         metrics.minima = embarquesDepoisP31 - isentosDepoisP31;
 
-        // 3. Máxima
-        metrics.maxima = embarquesAteP31 - desembAteP31;
-
-        // Figueira não existe na VOLTA
-        metrics.figueira = 0;
+        // 4. ✅ Máxima (SUBTRAI Figueira VOLTA)
+        metrics.maxima = embarquesAteP31 - desembAteP31 - figueiraVolta;
     }
 
     console.log(`📊 [FILTRO] Métricas da ${trip.name}:`);
@@ -922,7 +938,6 @@ function calculateTripMetrics(tripId) {
 
     return metrics;
 }
-
 function calculateDetailedMetrics() {
     const tariffMovementData = {
         byType: {},
