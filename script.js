@@ -1,17 +1,8 @@
 // 
-// INICIALIZAÇÃO DO MAPA
+// VARIÁVEIS GLOBAIS (PRIMEIRO!)
 // 
-const map = L.map('map').setView([-30.08, -51.025], 13);
-
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-}).addTo(map);
-
-// 
-// VARIÁVEIS GLOBAIS
-// 
-const markers = [];
-const latlngs = [];
+let markers = [];
+let latlngs = [];
 let allStationsData = [];
 let allTrips = [];
 let currentVisualizationMode = 'both';
@@ -21,10 +12,13 @@ let polyline = null;
 let selectedTripId = 'all';
 let routeLayers = {};
 let loadedRoutes = {};
+let drawnItems = new L.FeatureGroup();  // ✅ DECLARAR ANTES!
+let regionSelectionLayer = null;
 
-// 
-// MAPEAMENTO COMPLETO DE TIPOS DE TARIFA
-// 
+// 🚫 Estações excluídas dos cálculos
+const EXCLUDED_STATIONS = [149, 147, 151, 1, 2, 153, 148, 146];
+
+// Mapeamento de tarifas
 const tariffTypes = {
     '23': { name: 'Divisa', value: 5.00, color: '#FFD600', icon: '🟡' },
     '01': { name: 'Máxima', value: 10.30, color: '#FF1744', icon: '🔴' },
@@ -33,8 +27,185 @@ const tariffTypes = {
     '98': { name: 'Isento', value: 0.00, color: '#9E9E9E', icon: '⚪' }
 };
 
-// 🚫 Estações excluídas dos cálculos
-const EXCLUDED_STATIONS = [149, 147, 1 , 2, 153, 148, 146];
+// Função auxiliar
+function isStationExcluded(station) {
+    if (!station || !station.stationNumber) return false;
+    return EXCLUDED_STATIONS.includes(parseInt(station.stationNumber));
+}
+
+// 
+// INICIALIZAÇÃO DO MAPA (DEPOIS DAS VARIÁVEIS!)
+// 
+const map = L.map('map').setView([-30.08, -51.025], 13);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+}).addTo(map);
+
+// ✅ AGORA PODE CHAMAR (drawnItems já existe)
+initializeRegionSelection();
+
+// 
+// FUNÇÕES
+// 
+
+// ✅ INICIALIZAR CONTROLE DE DESENHO
+function initializeRegionSelection() {
+    map.addLayer(drawnItems);
+    
+    const drawControl = new L.Control.Draw({
+        position: 'topright',
+        draw: {
+            polyline: false,
+            polygon: false,
+            circle: false,
+            marker: false,
+            circlemarker: false,
+            rectangle: {
+                shapeOptions: {
+                    color: '#3388ff',
+                    weight: 3,
+                    fillOpacity: 0.2
+                }
+            }
+        },
+        edit: {
+            featureGroup: drawnItems,
+            remove: true
+        }
+    });
+    
+    map.addControl(drawControl);
+    
+    map.on('draw:created', function(e) {
+        const layer = e.layer;
+        drawnItems.addLayer(layer);
+        analyzeRegion(layer.getBounds());
+    });
+    
+    map.on('draw:deleted', function(e) {
+        closeRegionAnalysis();
+    });
+    
+    console.log('✅ Seleção de região habilitada');
+}
+
+// ✅ ANALISAR ESTAÇÕES DENTRO DA REGIÃO
+function analyzeRegion(bounds) {
+    console.log('📍 Analisando região:', bounds);
+    
+    const stationsInRegion = [];
+    let totalBoarding = 0;
+    let totalAlighting = 0;
+    
+    allStationsData.forEach((station, index) => {
+        if (isStationExcluded(station)) return;
+        
+        const lat = station.latlng[0];
+        const lng = station.latlng[1];
+        
+        if (bounds.contains([lat, lng])) {
+            stationsInRegion.push({
+                ...station,
+                index: index
+            });
+            
+            totalBoarding += station.boarding || 0;
+            totalAlighting += station.alighting || 0;
+        }
+    });
+    
+    console.log(`📊 ${stationsInRegion.length} estações encontradas na região`);
+    console.log(`   ↗️ Total embarques: ${totalBoarding}`);
+    console.log(`   ↘️ Total desembarques: ${totalAlighting}`);
+    
+    showRegionAnalysisModal({
+        stations: stationsInRegion,
+        totalBoarding: totalBoarding,
+        totalAlighting: totalAlighting,
+        bounds: bounds
+    });
+}
+
+// ✅ EXIBIR MODAL COM ANÁLISE DA REGIÃO
+function showRegionAnalysisModal(data) {
+    closeRegionAnalysis();
+    
+    const { stations, totalBoarding, totalAlighting, bounds } = data;
+    
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.id = 'region-overlay';
+    overlay.onclick = closeRegionAnalysis;
+    
+    const modal = document.createElement('div');
+    modal.className = 'region-analysis-modal';
+    modal.id = 'region-modal';
+    
+    const balance = totalBoarding - totalAlighting;
+    
+    modal.innerHTML = `
+        <button class="region-analysis-close" onclick="closeRegionAnalysis()">×</button>
+        
+        <h2>📍 Análise da Região Selecionada</h2>
+        
+        <div class="region-stats-grid">
+            <div class="region-stat-card">
+                <div class="region-stat-label">Estações</div>
+                <div class="region-stat-value region-stat-stations">${stations.length}</div>
+            </div>
+            <div class="region-stat-card">
+                <div class="region-stat-label">↗️ Embarcaram</div>
+                <div class="region-stat-value region-stat-boarding">${totalBoarding}</div>
+            </div>
+            <div class="region-stat-card">
+                <div class="region-stat-label">↘️ Desceram</div>
+                <div class="region-stat-value region-stat-alighting">${totalAlighting}</div>
+            </div>
+            <div class="region-stat-card">
+                <div class="region-stat-label">💰 Saldo</div>
+                <div class="region-stat-value" style="color: ${balance >= 0 ? '#4CAF50' : '#F44336'}">
+                    ${balance >= 0 ? '+' : ''}${balance}
+                </div>
+            </div>
+        </div>
+        
+        <h3 style="margin: 20px 0 12px 0; font-size: 16px;">📋 Estações na Região:</h3>
+        
+        <div class="region-stations-list">
+            ${stations.length > 0 ? stations.map(station => `
+                <div class="region-station-item">
+                    <div class="region-station-info">
+                        <span class="region-station-number">Est. ${station.stationNumber}</span>
+                        <span class="region-station-line">${station.line}</span>
+                        <div style="font-size: 11px; color: #999; margin-top: 2px;">
+                            ${station.time1 || 'N/A'}
+                        </div>
+                    </div>
+                    <div class="region-station-metrics">
+                        <span class="region-station-boarding">↗️ ${station.boarding || 0}</span>
+                        <span class="region-station-alighting">↘️ ${station.alighting || 0}</span>
+                    </div>
+                </div>
+            `).join('') : '<p style="text-align: center; color: #999;">Nenhuma estação encontrada</p>'}
+        </div>
+    `;
+    
+    document.body.appendChild(overlay);
+    document.body.appendChild(modal);
+}
+
+// ✅ FECHAR MODAL
+function closeRegionAnalysis() {
+    const overlay = document.getElementById('region-overlay');
+    const modal = document.getElementById('region-modal');
+    
+    if (overlay) overlay.remove();
+    if (modal) modal.remove();
+}
+
+
+
 
 // Função auxiliar para verificar se estação deve ser ignorada
 function isStationExcluded(station) {
@@ -554,6 +725,90 @@ function identifyTrips() {
     
     return allTrips;
 }
+// 🔧 Função para agrupar estações com coordenadas muito próximas
+function consolidateNearbyStations(stations, distanceThreshold = 1) {
+    const consolidated = [];
+    const processed = new Set();
+    
+    stations.forEach((station, index) => {
+        if (processed.has(index)) return;
+        
+        const nearby = [index];
+        
+        for (let j = index + 1; j < stations.length; j++) {
+            if (processed.has(j)) continue;
+            
+            const otherStation = stations[j];
+            
+            // ✅ APENAS 1 VALIDAÇÃO: Mesma linha
+            if (station.line !== otherStation.line) continue;
+            
+            // ❌ REMOVER validação de direction (não existe no CSV)
+            
+            const dist = calculateDistance(
+                station.latlng[0], station.latlng[1],
+                stations[j].latlng[0], stations[j].latlng[1]
+            );
+            
+            if (dist < distanceThreshold) {
+                nearby.push(j);
+                processed.add(j);
+            }
+        }
+        
+        if (nearby.length > 1) {
+            console.log(`🔗 Consolidando ${nearby.length} estações próximas (Est. ${station.stationNumber} - ${station.line})`);
+            
+            const consolidatedStation = {
+                ...station,
+                boarding: 0,
+                alighting: 0,
+                carried: 0,
+                door1Alighting: 0,
+                doors: [
+                    { boarding: 0, alighting: 0 },
+                    { boarding: 0, alighting: 0 },
+                    { boarding: 0, alighting: 0 },
+                    { boarding: 0, alighting: 0 },
+                    { boarding: 0, alighting: 0 },
+                    { boarding: 0, alighting: 0 }
+                ]
+            };
+            
+            nearby.forEach(idx => {
+                const st = stations[idx];
+                consolidatedStation.boarding += st.boarding || 0;
+                consolidatedStation.alighting += st.alighting || 0;
+                consolidatedStation.carried += st.carried || 0;
+                consolidatedStation.door1Alighting += st.door1Alighting || 0;
+                
+                st.doors.forEach((door, doorIdx) => {
+                    consolidatedStation.doors[doorIdx].boarding += door.boarding || 0;
+                    consolidatedStation.doors[doorIdx].alighting += door.alighting || 0;
+                });
+            });
+            
+            let sumLat = 0, sumLng = 0;
+            nearby.forEach(idx => {
+                sumLat += stations[idx].latlng[0];
+                sumLng += stations[idx].latlng[1];
+            });
+            consolidatedStation.latlng = [sumLat / nearby.length, sumLng / nearby.length];
+            
+            consolidated.push(consolidatedStation);
+            processed.add(index);
+            
+            console.log(`   ✅ Consolidado: ${consolidatedStation.boarding} embarques, ${consolidatedStation.alighting} desembarques`);
+        } else {
+            consolidated.push(station);
+            processed.add(index);
+        }
+    });
+    
+    console.log(`📊 Consolidação concluída: ${stations.length} → ${consolidated.length} estações`);
+    return consolidated;
+}
+
 function updateMetricsPanel(metrics) {
     console.log('📊 Atualizando painel de métricas com:', metrics);
 
@@ -655,18 +910,6 @@ function calculateMetrics() {
             return;
         }
 
-        // ✅ Calcular isentos desta viagem (EXCLUINDO estações da lista)
-        let isentosViagem = 0;
-        trip.stationIndices.forEach(idx => {
-            const st = allStationsData[idx];
-            if (!isStationExcluded(st)) {
-                isentosViagem += st.door1Alighting || 0;
-            }
-        });
-        
-        // ✅ Somar isentos desta viagem ao total
-        metrics.isentos += isentosViagem;
-
         // ✅ Calcular total de embarques da viagem (EXCLUINDO estações da lista)
         let totalEmbarquesViagem = 0;
         trip.stationIndices.forEach(idx => {
@@ -686,7 +929,6 @@ function calculateMetrics() {
             
             for (let i = 0; i <= p31Index; i++) {
                 const st = allStationsData[trip.stationIndices[i]];
-                // ✅ Pular estações excluídas
                 if (isStationExcluded(st)) continue;
                 
                 embarquesAteP31 += st.boarding || 0;
@@ -699,12 +941,16 @@ function calculateMetrics() {
             let isentosDepoisP31 = 0;
             for (let i = p31Index + 1; i < trip.stationIndices.length; i++) {
                 const st = allStationsData[trip.stationIndices[i]];
-                // ✅ Pular estações excluídas
                 if (isStationExcluded(st)) continue;
                 
                 embarquesDepoisP31 += st.boarding || 0;
                 isentosDepoisP31 += st.door1Alighting || 0;
             }
+            
+            // ✅ CORREÇÃO: Isentos = porta1 até P31 + embarques depois P31
+            // (Os isentos porta1 depois JÁ ESTÃO nos embarques depois!)
+            const isentosViagem = isentosAteP31 + embarquesDepoisP31;
+            metrics.isentos += isentosViagem;
             
             // 1. Mínima
             const minimaIda = desembAteP31 - isentosAteP31;
@@ -715,7 +961,6 @@ function calculateMetrics() {
             if (p42Index !== -1 && p42Index < p31Index) {
                 for (let i = p42Index + 1; i <= p31Index; i++) {
                     const st = allStationsData[trip.stationIndices[i]];
-                    // ✅ Pular estações excluídas
                     if (isStationExcluded(st)) continue;
                     
                     figueira += st.boarding || 0;
@@ -723,21 +968,22 @@ function calculateMetrics() {
             }
             metrics.figueira += figueira;
 
-            // 3. Divisa
-            const divisaIda = embarquesDepoisP31;
+            // 3. ✅ Divisa = 0 (embarques depois P31 não contam como divisa na IDA)
+            const divisaIda = 0;
             metrics.divisa += divisaIda;
 
-            // 4. Máxima
-            const maximaIda = embarquesAteP31 - figueira - minimaIda - isentosAteP31 - isentosDepoisP31;
+            // 4. ✅ CORREÇÃO: Máxima NÃO subtrai embarques depois P31
+            const maximaIda = embarquesAteP31 - figueira - minimaIda - isentosAteP31;
             metrics.maxima += maximaIda;
 
             console.log(`📊 ${trip.name} (${totalEmbarquesViagem} embarques):`);
             console.log(`   Até P31: ${embarquesAteP31} emb, ${desembAteP31} desemb`);
             console.log(`   🟢 Mínima (desemb - isentos): ${desembAteP31} - ${isentosAteP31} = ${minimaIda}`);
             console.log(`   🟡 Figueira (emb P42→P31): ${figueira}`);
-            console.log(`   🔵 Divisa (emb depois P31): ${embarquesDepoisP31} = ${divisaIda}`);
-            console.log(`   ⚪ Isentos: ${isentosViagem} (${isentosAteP31} até P31 + ${isentosDepoisP31} depois)`);
-            console.log(`   🔴 Máxima: ${embarquesAteP31} - ${figueira} - ${minimaIda} - ${isentosAteP31} - ${isentosDepoisP31} = ${maximaIda}`);
+            console.log(`   🔵 Divisa (IDA não conta embarques depois P31): ${divisaIda}`);
+            console.log(`   🚫 Embarques depois P31 (VIRARAM ISENTOS): ${embarquesDepoisP31}`);
+            console.log(`   ⚪ Isentos: ${isentosViagem} (${isentosAteP31} porta1 até P31 + ${embarquesDepoisP31} embarques depois - inclui ${isentosDepoisP31} porta1 depois)`);
+            console.log(`   🔴 Máxima: ${embarquesAteP31} - ${figueira} - ${minimaIda} - ${isentosAteP31} = ${maximaIda}`);
             console.log(`   ✅ Verificação: ${maximaIda} + ${figueira} + ${minimaIda} + ${divisaIda} + ${isentosViagem} = ${maximaIda + figueira + minimaIda + divisaIda + isentosViagem} (esperado: ${totalEmbarquesViagem})`);
         }
 
@@ -751,7 +997,6 @@ function calculateMetrics() {
             
             for (let i = 0; i <= p31Index; i++) {
                 const st = allStationsData[trip.stationIndices[i]];
-                // ✅ Pular estações excluídas
                 if (isStationExcluded(st)) continue;
                 
                 embarquesAteP31 += st.boarding || 0;
@@ -763,11 +1008,14 @@ function calculateMetrics() {
             let isentosDepoisP31 = 0;
             for (let i = p31Index + 1; i < trip.stationIndices.length; i++) {
                 const st = allStationsData[trip.stationIndices[i]];
-                // ✅ Pular estações excluídas
                 if (isStationExcluded(st)) continue;
                 
                 isentosDepoisP31 += st.door1Alighting || 0;
             }
+            
+            // ✅ VOLTA: Isentos são apenas porta 1
+            const isentosViagem = isentosAteP31 + isentosDepoisP31;
+            metrics.isentos += isentosViagem;
             
             // 1. Divisa
             const divisaVolta = desembAteP31 - isentosAteP31;
@@ -778,7 +1026,6 @@ function calculateMetrics() {
             if (p42Index !== -1 && p42Index > p31Index) {
                 for (let i = p31Index + 1; i <= p42Index; i++) {
                     const st = allStationsData[trip.stationIndices[i]];
-                    // ✅ Pular estações excluídas
                     if (isStationExcluded(st)) continue;
                     
                     figueiraVolta += st.alighting || 0;
@@ -790,7 +1037,6 @@ function calculateMetrics() {
             let embarquesDepoisP31 = 0;
             for (let i = p31Index + 1; i < trip.stationIndices.length; i++) {
                 const st = allStationsData[trip.stationIndices[i]];
-                // ✅ Pular estações excluídas
                 if (isStationExcluded(st)) continue;
                 
                 embarquesDepoisP31 += st.boarding || 0;
@@ -829,7 +1075,6 @@ function calculateMetrics() {
 
     return metrics;
 }
-
 function calculateTripMetrics(tripId) {
     const trip = allTrips.find(t => t.id === tripId);
     if (!trip) return null;
@@ -853,7 +1098,11 @@ function calculateTripMetrics(tripId) {
         ? referencePoints['parada-42-ida']
         : referencePoints['parada-42-volta'];
 
-    // Localizar P31 e P42
+    console.log(`🔍 [FILTRO] Buscando P31 e P42 na ${trip.name}:`);
+    console.log(`   📍 P31 Referência (${trip.direction}): [${p31Ref.lat}, ${p31Ref.lng}]`);
+    console.log(`   📍 P42 Referência (${trip.direction}): [${p42Ref.lat}, ${p42Ref.lng}]`);
+
+    // Localizar P31 e P42 por coordenadas
     trip.stationIndices.forEach((stationIndex, idx) => {
         const station = allStationsData[stationIndex];
 
@@ -864,6 +1113,7 @@ function calculateTripMetrics(tripId) {
 
         if (distP31 < 50 && p31Index === -1) {
             p31Index = idx;
+            console.log(`   ✅ P31 encontrada no índice ${idx} - Est.${station.stationNumber} em [${station.latlng[0]}, ${station.latlng[1]}] - Distância: ${distP31.toFixed(2)}m`);
         }
 
         const distP42 = calculateDistance(
@@ -873,6 +1123,7 @@ function calculateTripMetrics(tripId) {
 
         if (distP42 < 50 && p42Index === -1) {
             p42Index = idx;
+            console.log(`   ✅ P42 encontrada no índice ${idx} - Est.${station.stationNumber} em [${station.latlng[0]}, ${station.latlng[1]}] - Distância: ${distP42.toFixed(2)}m`);
         }
     });
 
@@ -881,14 +1132,9 @@ function calculateTripMetrics(tripId) {
         return metrics;
     }
 
-    // ✅ Calcular isentos TOTAIS desta viagem (EXCLUINDO estações)
-    let isentosViagem = 0;
-    trip.stationIndices.forEach(idx => {
-        const st = allStationsData[idx];
-        if (!isStationExcluded(st)) {
-            isentosViagem += st.door1Alighting || 0;
-        }
-    });
+    if (p42Index === -1) {
+        console.warn(`⚠️ [FILTRO] P42 NÃO encontrada na ${trip.name}`);
+    }
 
     // ✅ Total de embarques da viagem (EXCLUINDO estações)
     let totalEmbarquesViagem = 0;
@@ -909,7 +1155,6 @@ function calculateTripMetrics(tripId) {
         
         for (let i = 0; i <= p31Index; i++) {
             const st = allStationsData[trip.stationIndices[i]];
-            // ✅ Pular estações excluídas
             if (isStationExcluded(st)) continue;
             
             embarquesAteP31 += st.boarding || 0;
@@ -922,15 +1167,15 @@ function calculateTripMetrics(tripId) {
         let isentosDepoisP31 = 0;
         for (let i = p31Index + 1; i < trip.stationIndices.length; i++) {
             const st = allStationsData[trip.stationIndices[i]];
-            // ✅ Pular estações excluídas
             if (isStationExcluded(st)) continue;
             
             embarquesDepoisP31 += st.boarding || 0;
             isentosDepoisP31 += st.door1Alighting || 0;
         }
         
-        // ✅ Categoria Isentos: TODOS os isentos
-        metrics.isentos = isentosViagem;
+        // ✅ CORREÇÃO: Isentos = porta1 até P31 + embarques depois P31
+        // (Os isentos porta1 depois JÁ ESTÃO nos embarques depois!)
+        metrics.isentos = isentosAteP31 + embarquesDepoisP31;
         
         // 1. Mínima
         metrics.minima = desembAteP31 - isentosAteP31;
@@ -940,7 +1185,6 @@ function calculateTripMetrics(tripId) {
         if (p42Index !== -1 && p42Index < p31Index) {
             for (let i = p42Index + 1; i <= p31Index; i++) {
                 const st = allStationsData[trip.stationIndices[i]];
-                // ✅ Pular estações excluídas
                 if (isStationExcluded(st)) continue;
                 
                 figueira += st.boarding || 0;
@@ -948,11 +1192,22 @@ function calculateTripMetrics(tripId) {
         }
         metrics.figueira = figueira;
 
-        // 3. ✅ Divisa (NÃO subtrai isentos)
-        metrics.divisa = embarquesDepoisP31;
+        // 3. ✅ Divisa = 0 (embarques depois P31 não contam como divisa na IDA)
+        metrics.divisa = 0;
 
-        // 4. ✅ Máxima (SUBTRAI isentos depois P31)
-        metrics.maxima = embarquesAteP31 - figueira - metrics.minima - isentosAteP31 - isentosDepoisP31;
+        // 4. ✅ CORREÇÃO: Máxima NÃO subtrai embarques depois P31
+        // (Eles já não estão sendo considerados na Máxima)
+        metrics.maxima = embarquesAteP31 - figueira - metrics.minima - isentosAteP31;
+
+        console.log(`📊 [FILTRO] ${trip.name} (${totalEmbarquesViagem} embarques):`);
+        console.log(`   Até P31 (índice ${p31Index}): ${embarquesAteP31} emb, ${desembAteP31} desemb`);
+        console.log(`   🟢 Mínima (desemb - isentos): ${desembAteP31} - ${isentosAteP31} = ${metrics.minima}`);
+        console.log(`   🟡 Figueira (emb P42→P31): ${figueira}`);
+        console.log(`   🔵 Divisa (IDA não conta embarques depois P31): ${metrics.divisa}`);
+        console.log(`   🚫 Embarques depois P31 (VIRARAM ISENTOS): ${embarquesDepoisP31}`);
+        console.log(`   ⚪ Isentos: ${metrics.isentos} (${isentosAteP31} porta1 até P31 + ${embarquesDepoisP31} embarques depois - inclui ${isentosDepoisP31} porta1 depois)`);
+        console.log(`   🔴 Máxima: ${embarquesAteP31} - ${figueira} - ${metrics.minima} - ${isentosAteP31} = ${metrics.maxima}`);
+        console.log(`   ✅ TOTAL: ${metrics.maxima + metrics.figueira + metrics.minima + metrics.divisa + metrics.isentos}`);
     }
 
     /* ===============================
@@ -965,7 +1220,6 @@ function calculateTripMetrics(tripId) {
         
         for (let i = 0; i <= p31Index; i++) {
             const st = allStationsData[trip.stationIndices[i]];
-            // ✅ Pular estações excluídas
             if (isStationExcluded(st)) continue;
             
             embarquesAteP31 += st.boarding || 0;
@@ -977,16 +1231,15 @@ function calculateTripMetrics(tripId) {
         let isentosDepoisP31 = 0;
         for (let i = p31Index + 1; i < trip.stationIndices.length; i++) {
             const st = allStationsData[trip.stationIndices[i]];
-            // ✅ Pular estações excluídas
             if (isStationExcluded(st)) continue;
             
             isentosDepoisP31 += st.door1Alighting || 0;
         }
         
-        // ✅ Categoria Isentos: TODOS os isentos
+        // ✅ VOLTA: Isentos são apenas porta 1
         metrics.isentos = isentosAteP31 + isentosDepoisP31;
         
-        // 1. Divisa
+        // 1. ✅ Divisa = Todos desembarques até P31 - isentos até P31
         metrics.divisa = desembAteP31 - isentosAteP31;
 
         // 2. ✅ Figueira VOLTA (EXCLUINDO estações)
@@ -994,7 +1247,6 @@ function calculateTripMetrics(tripId) {
         if (p42Index !== -1 && p42Index > p31Index) {
             for (let i = p31Index + 1; i <= p42Index; i++) {
                 const st = allStationsData[trip.stationIndices[i]];
-                // ✅ Pular estações excluídas
                 if (isStationExcluded(st)) continue;
                 
                 figueiraVolta += st.alighting || 0;
@@ -1006,7 +1258,6 @@ function calculateTripMetrics(tripId) {
         let embarquesDepoisP31 = 0;
         for (let i = p31Index + 1; i < trip.stationIndices.length; i++) {
             const st = allStationsData[trip.stationIndices[i]];
-            // ✅ Pular estações excluídas
             if (isStationExcluded(st)) continue;
             
             embarquesDepoisP31 += st.boarding || 0;
@@ -1015,15 +1266,16 @@ function calculateTripMetrics(tripId) {
 
         // 4. ✅ Máxima (SUBTRAI Figueira VOLTA)
         metrics.maxima = embarquesAteP31 - desembAteP31 - figueiraVolta;
-    }
 
-    console.log(`📊 [FILTRO] Métricas da ${trip.name}:`);
-    console.log(`   🔴 Máxima: ${metrics.maxima}`);
-    console.log(`   🟢 Figueira: ${metrics.figueira}`);
-    console.log(`   🟢 Mínima: ${metrics.minima}`);
-    console.log(`   🔵 Divisa: ${metrics.divisa}`);
-    console.log(`   ⚪ Isentos: ${metrics.isentos}`);
-    console.log(`   ✅ TOTAL: ${metrics.maxima + metrics.figueira + metrics.minima + metrics.divisa + metrics.isentos}`);
+        console.log(`📊 [FILTRO] ${trip.name} (${totalEmbarquesViagem} embarques):`);
+        console.log(`   Até P31 (índice ${p31Index}): ${embarquesAteP31} emb, ${desembAteP31} desemb`);
+        console.log(`   🟡 Divisa (TODOS desemb até P31 - isentos): ${desembAteP31} - ${isentosAteP31} = ${metrics.divisa}`);
+        console.log(`   🟡 Figueira VOLTA (desemb P31→P42): ${figueiraVolta}`);
+        console.log(`   🟢 Mínima: ${embarquesDepoisP31} emb - ${isentosDepoisP31} isentos = ${metrics.minima}`);
+        console.log(`   🔴 Máxima: ${embarquesAteP31} - ${desembAteP31} - ${figueiraVolta} = ${metrics.maxima}`);
+        console.log(`   ⚪ Isentos: ${metrics.isentos} (${isentosAteP31} até P31 + ${isentosDepoisP31} depois)`);
+        console.log(`   ✅ TOTAL: ${metrics.maxima + metrics.figueira + metrics.minima + metrics.divisa + metrics.isentos}`);
+    }
 
     return metrics;
 }
@@ -1149,6 +1401,7 @@ function debugFindP42() {
     
     console.log('🔍 ');
 }
+
 function updateMetricsDisplay(metrics) {
     const minimaIdaEl = document.getElementById('metric-minima-ida');
     const maximaEl = document.getElementById('metric-maxima');
@@ -1192,6 +1445,8 @@ function updateDetailedDisplay(detailedMetrics) {
     
     console.log('📊 Display detalhado atualizado:', detailedMetrics);
 }
+
+
 
 // 
 // FILTROS
@@ -2172,9 +2427,11 @@ function showTripSummary(tripId) {
         Object.keys(doorMetrics).forEach((doorKey, index) => {
             const doorNumber = index + 1;
             const door = doorMetrics[doorKey];
-            const total = door.boarding + door.alighting;
+            // ✅ MUDANÇA: Total = embarques - desembarques (saldo líquido)
+            const total = door.boarding - door.alighting;
             
-            if (total > 0) {
+            // ✅ MUDANÇA: Mostrar se houver movimento (não apenas se total > 0)
+            if (door.boarding > 0 || door.alighting > 0) {
                 doorsHTML += `
                     <div class="door-card-compact">
                         <div class="door-number-compact">
@@ -2191,7 +2448,7 @@ function showTripSummary(tripId) {
                             </div>
                         </div>
                         <div class="door-total-compact">
-                            Total: ${total}
+                            Saldo: ${total >= 0 ? '+' : ''}${total}
                         </div>
                     </div>
                 `;
@@ -2209,7 +2466,6 @@ function showTripSummary(tripId) {
     
     console.log('✅ Resumo exibido');
 }
-
 // ✅ FUNÇÃO AJUSTADA: showAllTripsSummary
 function showAllTripsSummary() {
     console.log('🔍 showAllTripsSummary chamada - Agregando todas as viagens');
@@ -2336,9 +2592,11 @@ function showAllTripsSummary() {
         Object.keys(doorTotals).forEach((doorKey, index) => {
             const doorNumber = index + 1;
             const door = doorTotals[doorKey];
-            const total = door.boarding + door.alighting;
+            // ✅ MUDANÇA: Total = embarques - desembarques (saldo líquido)
+            const total = door.boarding - door.alighting;
             
-            if (total > 0) {
+            // ✅ MUDANÇA: Mostrar se houver movimento (não apenas se total > 0)
+            if (door.boarding > 0 || door.alighting > 0) {
                 doorsHTML += `
                     <div class="door-card-compact">
                         <div class="door-number-compact">
@@ -2355,7 +2613,7 @@ function showAllTripsSummary() {
                             </div>
                         </div>
                         <div class="door-total-compact">
-                            Total: ${total}
+                            Saldo: ${total >= 0 ? '+' : ''}${total}
                         </div>
                     </div>
                 `;
@@ -2416,7 +2674,7 @@ Papa.parse('data.csv', {
             if (EXCLUDED_STATIONS.includes(stationNum)) {
                 skippedCount++;
                 console.log(`🚫 Estação ${stationNum} excluída do carregamento`);
-                return; // Pular esta estação completamente
+                return;
             }
             
             const latlng = parseLatLng(row[6]);
@@ -2471,14 +2729,6 @@ Papa.parse('data.csv', {
             
             totalBoarding += boarding;
             totalAlighting += alighting;
-            
-            const marker = createInteractiveMarker(latlng, stationData, allStationsData.length - 1);
-            
-            // ✅ SÓ ADICIONAR SE MARCADOR FOI CRIADO (NÃO É NULL)
-            if (marker) {
-                markers.push(marker);
-                latlngs.push(latlng);
-            }
         });
         
         console.log('✅ Processamento do CSV concluído:');
@@ -2491,59 +2741,136 @@ Papa.parse('data.csv', {
             return;
         }
         
+        // ✅ CONSOLIDAR ESTAÇÕES COM COORDENADAS PRÓXIMAS
+        console.log('🔗 ==========================================');
+        console.log('🔗 CONSOLIDANDO ESTAÇÕES PRÓXIMAS (< 1m)');
+        console.log('🔗 ==========================================');
+        allStationsData = consolidateNearbyStations(allStationsData, 1);
+        
+        // ✅ CRIAR MARCADORES COM DADOS CONSOLIDADOS
+        markers = [];
+        latlngs = [];
+        allStationsData.forEach((stationData, index) => {
+            const marker = createInteractiveMarker(stationData.latlng, stationData, index);
+            if (marker) {
+                markers.push(marker);
+                latlngs.push(stationData.latlng);
+            }
+        });
+        
         initializeClusterGroup();
         
         identifyTrips();
         
-        // ✅ DEBUG: PROCURAR TODAS AS ESTAÇÕES 31 E 42 NO CSV
+        // ✅ BUSCAR P31 E P42 POR COORDENADAS (NÃO POR NÚMERO)
         console.log('🔍 ==========================================');
-        console.log('🔍 PROCURANDO PARADAS 31 E 42 NO CSV:');
+        console.log('🔍 PROCURANDO PARADAS 31 E 42 POR COORDENADAS:');
         console.log('🔍 ==========================================');
 
-        const stations31 = [];
-        const stations42 = [];
+        const stationsP31Ida = [];
+        const stationsP31Volta = [];
+        const stationsP42Ida = [];
+        const stationsP42Volta = [];
 
-        allStationsData.forEach((station, index) => {
-            const num = parseInt(station.stationNumber);
-            
-            if (num === 31) {
-                stations31.push({
-                    index: index,
-                    coords: station.latlng,
-                    time: station.time1,
-                    line: station.line,
-                    direction: station.direction
-                });
-            }
-            
-            if (num === 42) {
-                stations42.push({
-                    index: index,
-                    coords: station.latlng,
-                    time: station.time1,
-                    line: station.line,
-                    direction: station.direction
-                });
-            }
-        });
+        // ✅ Coordenadas de referência
+        const p31IdaRef = referencePoints['parada-31-ida'];
+        const p31VoltaRef = referencePoints['parada-31-volta'];
+        const p42IdaRef = referencePoints['parada-42-ida'];
+        const p42VoltaRef = referencePoints['parada-42-volta'];
 
-        console.log(`📍 Encontradas ${stations31.length} estações com número 31:`);
-        stations31.forEach(s => {
-            console.log(`   Est. 31 - ${s.line} ${s.direction} - ${s.time} - [${s.coords[0]}, ${s.coords[1]}]`);
-        });
-
-        console.log(`📍 Encontradas ${stations42.length} estações com número 42:`);
-        stations42.forEach(s => {
-            console.log(`   Est. 42 - ${s.line} ${s.direction} - ${s.time} - [${s.coords[0]}, ${s.coords[1]}]`);
-        });
-
-        console.log('🔍 ==========================================');
-        
-        // ✅ DEBUG: Verificar coordenadas de referência
         console.log('📍 Coordenadas de Referência:');
-        console.log(`   P31 IDA: [${referencePoints['parada-31-ida'].lat}, ${referencePoints['parada-31-ida'].lng}]`);
-        console.log(`   P31 VOLTA: [${referencePoints['parada-31-volta'].lat}, ${referencePoints['parada-31-volta'].lng}]`);
-        console.log(`   P42 IDA: [${referencePoints['parada-42-ida'].lat}, ${referencePoints['parada-42-ida'].lng}]`);
+        console.log(`   P31 IDA: [${p31IdaRef.lat}, ${p31IdaRef.lng}]`);
+        console.log(`   P31 VOLTA: [${p31VoltaRef.lat}, ${p31VoltaRef.lng}]`);
+        console.log(`   P42 IDA: [${p42IdaRef.lat}, ${p42IdaRef.lng}]`);
+        console.log(`   P42 VOLTA: [${p42VoltaRef.lat}, ${p42VoltaRef.lng}]`);
+
+        // ✅ Buscar estações próximas das coordenadas de referência (< 50m)
+        allStationsData.forEach((station, index) => {
+            // P31 IDA
+            const distP31Ida = calculateDistance(
+                station.latlng[0], station.latlng[1],
+                p31IdaRef.lat, p31IdaRef.lng
+            );
+            if (distP31Ida < 50) {
+                stationsP31Ida.push({
+                    index: index,
+                    stationNum: station.stationNumber,
+                    coords: station.latlng,
+                    time: station.time1,
+                    line: station.line,
+                    distance: distP31Ida
+                });
+            }
+
+            // P31 VOLTA
+            const distP31Volta = calculateDistance(
+                station.latlng[0], station.latlng[1],
+                p31VoltaRef.lat, p31VoltaRef.lng
+            );
+            if (distP31Volta < 50) {
+                stationsP31Volta.push({
+                    index: index,
+                    stationNum: station.stationNumber,
+                    coords: station.latlng,
+                    time: station.time1,
+                    line: station.line,
+                    distance: distP31Volta
+                });
+            }
+
+            // P42 IDA
+            const distP42Ida = calculateDistance(
+                station.latlng[0], station.latlng[1],
+                p42IdaRef.lat, p42IdaRef.lng
+            );
+            if (distP42Ida < 50) {
+                stationsP42Ida.push({
+                    index: index,
+                    stationNum: station.stationNumber,
+                    coords: station.latlng,
+                    time: station.time1,
+                    line: station.line,
+                    distance: distP42Ida
+                });
+            }
+
+            // P42 VOLTA
+            const distP42Volta = calculateDistance(
+                station.latlng[0], station.latlng[1],
+                p42VoltaRef.lat, p42VoltaRef.lng
+            );
+            if (distP42Volta < 50) {
+                stationsP42Volta.push({
+                    index: index,
+                    stationNum: station.stationNumber,
+                    coords: station.latlng,
+                    time: station.time1,
+                    line: station.line,
+                    distance: distP42Volta
+                });
+            }
+        });
+
+        console.log(`\n📍 P31 IDA (${stationsP31Ida.length} estações encontradas < 50m):`);
+        stationsP31Ida.forEach(s => {
+            console.log(`   Est. ${s.stationNum} - ${s.line} - ${s.time} - ${s.distance.toFixed(2)}m - [${s.coords[0]}, ${s.coords[1]}]`);
+        });
+
+        console.log(`\n📍 P31 VOLTA (${stationsP31Volta.length} estações encontradas < 50m):`);
+        stationsP31Volta.forEach(s => {
+            console.log(`   Est. ${s.stationNum} - ${s.line} - ${s.time} - ${s.distance.toFixed(2)}m - [${s.coords[0]}, ${s.coords[1]}]`);
+        });
+
+        console.log(`\n📍 P42 IDA (${stationsP42Ida.length} estações encontradas < 50m):`);
+        stationsP42Ida.forEach(s => {
+            console.log(`   Est. ${s.stationNum} - ${s.line} - ${s.time} - ${s.distance.toFixed(2)}m - [${s.coords[0]}, ${s.coords[1]}]`);
+        });
+
+        console.log(`\n📍 P42 VOLTA (${stationsP42Volta.length} estações encontradas < 50m):`);
+        stationsP42Volta.forEach(s => {
+            console.log(`   Est. ${s.stationNum} - ${s.line} - ${s.time} - ${s.distance.toFixed(2)}m - [${s.coords[0]}, ${s.coords[1]}]`);
+        });
+
         console.log('🔍 ==========================================');
         
         populateTripFilter();
