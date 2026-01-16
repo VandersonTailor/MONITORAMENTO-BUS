@@ -92,6 +92,185 @@ function initializeRegionSelection() {
     
     console.log('✅ Seleção de região habilitada');
 }
+// ============================================
+// SELEÇÃO MANUAL DE REGIÃO (Leaflet.Draw)
+// ============================================
+
+// ✅ INICIALIZAR CONTROLE DE DESENHO
+function initializeRegionSelection() {
+    map.addLayer(drawnItems);
+    
+    const drawControl = new L.Control.Draw({
+        position: 'topright',
+        draw: {
+            polyline: false,
+            polygon: false,
+            circle: false,
+            marker: false,
+            circlemarker: false,
+            rectangle: {
+                shapeOptions: {
+                    color: '#667eea',
+                    weight: 3,
+                    fillOpacity: 0.2
+                }
+            }
+        },
+        edit: {
+            featureGroup: drawnItems,
+            remove: true
+        }
+    });
+    
+    map.addControl(drawControl);
+    
+    // Evento quando desenho é criado
+    map.on('draw:created', function(e) {
+        const layer = e.layer;
+        drawnItems.addLayer(layer);
+        analyzeRegion(layer.getBounds());
+    });
+    
+    // Evento quando desenho é deletado
+    map.on('draw:deleted', function(e) {
+        closeRegionAnalysis();
+    });
+    
+    console.log('✅ Seleção de região habilitada');
+}
+
+// ✅ ANALISAR REGIÃO DESENHADA MANUALMENTE
+function analyzeRegion(bounds) {
+    console.log('📍 Analisando região desenhada manualmente:', bounds);
+    
+    const stationsInRegion = [];
+    let totalBoarding = 0;
+    let totalAlighting = 0;
+    
+    // Percorrer todas as estações e verificar se estão dentro do bounds
+    allStationsData.forEach((station, index) => {
+        if (isStationExcluded(station)) return;
+        
+        const lat = station.latlng[0];
+        const lng = station.latlng[1];
+        
+        // Verificar se está dentro do retângulo
+        if (bounds.contains([lat, lng])) {
+            stationsInRegion.push({
+                ...station,
+                index: index
+            });
+            
+            totalBoarding += station.boarding || 0;
+            totalAlighting += station.alighting || 0;
+        }
+    });
+    
+    console.log(`📊 ${stationsInRegion.length} estações encontradas na região desenhada`);
+    console.log(`   ↗️ Total embarques: ${totalBoarding}`);
+    console.log(`   ↘️ Total desembarques: ${totalAlighting}`);
+    
+    // Exibir modal com análise
+    showRegionAnalysisModal({
+        stations: stationsInRegion,
+        totalBoarding: totalBoarding,
+        totalAlighting: totalAlighting,
+        bounds: bounds
+    });
+}
+
+// ✅ EXIBIR MODAL COM ANÁLISE DA REGIÃO DESENHADA
+function showRegionAnalysisModal(data) {
+    // Fechar modal anterior se existir
+    closeRegionAnalysis();
+    
+    const { stations, totalBoarding, totalAlighting, bounds } = data;
+    
+    // Criar overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.id = 'region-overlay';
+    overlay.onclick = closeRegionAnalysis;
+    
+    // Criar modal
+    const modal = document.createElement('div');
+    modal.className = 'region-analysis-modal';
+    modal.id = 'region-modal';
+    
+    const totalMovement = totalBoarding + totalAlighting;
+    const balance = totalBoarding - totalAlighting;
+    
+    // Ordenar estações por embarques
+    const sortedStations = [...stations].sort((a, b) => (b.boarding || 0) - (a.boarding || 0));
+    
+    // Criar HTML das estações
+    const stationsHTML = sortedStations.length > 0 ? sortedStations.map(station => `
+        <div class="region-station-item">
+            <div class="region-station-info">
+                <span class="region-station-number">Est. ${station.stationNumber}</span>
+                <span class="region-station-line">${station.line || 'N/A'}</span>
+            </div>
+            <div class="region-station-metrics">
+                <span class="region-station-boarding">↗️ ${station.boarding || 0}</span>
+                <span class="region-station-alighting">↘️ ${station.alighting || 0}</span>
+            </div>
+        </div>
+    `).join('') : '<p style="text-align: center; color: #999; font-size: 13px; padding: 20px;">Nenhuma estação encontrada nesta região</p>';
+    
+    modal.innerHTML = `
+        <button class="region-analysis-close" onclick="closeRegionAnalysis()">×</button>
+        
+        <h2>📍 Análise da Região Selecionada</h2>
+        
+        <div class="region-stats-grid">
+            <div class="region-stat-card region-stat-stations">
+                <div class="region-stat-label">Estações</div>
+                <div class="region-stat-value">${stations.length}</div>
+            </div>
+            <div class="region-stat-card region-stat-boarding">
+                <div class="region-stat-label">↗️ Embarcaram</div>
+                <div class="region-stat-value">${totalBoarding}</div>
+            </div>
+            <div class="region-stat-card region-stat-alighting">
+                <div class="region-stat-label">↘️ Desceram</div>
+                <div class="region-stat-value">${totalAlighting}</div>
+            </div>
+            <div class="region-stat-card">
+                <div class="region-stat-label">📊 Total</div>
+                <div class="region-stat-value">${totalMovement}</div>
+            </div>
+        </div>
+        
+        <h3>📋 Estações na Região (${stations.length}):</h3>
+        
+        <div class="region-stations-list">
+            ${stationsHTML}
+        </div>
+    `;
+    
+    document.body.appendChild(overlay);
+    document.body.appendChild(modal);
+    
+    console.log('✅ Modal de análise exibido');
+}
+
+// ✅ FECHAR MODAL DE ANÁLISE
+function closeRegionAnalysis() {
+    const overlay = document.getElementById('region-overlay');
+    const modal = document.getElementById('region-modal');
+    
+    if (overlay) {
+        overlay.remove();
+        console.log('✅ Overlay removido');
+    }
+    
+    if (modal) {
+        modal.remove();
+        console.log('✅ Modal removido');
+    }
+}
+
+
 
 // ============================================
 // ANÁLISE DE REGIÕES - CÓDIGO COMPLETO AJUSTADO
