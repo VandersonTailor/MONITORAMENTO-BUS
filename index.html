@@ -506,6 +506,45 @@
         <!-- ============================================ -->
         <div id="trip-summary" class="legend-section" style="display: none;">
             <h3>📊 Resumo da Viagem</h3>
+
+               <!-- ✅ NOVA SEÇÃO: ANÁLISE DE REGIÕES -->
+    <div class="legend-section">
+        <h4>🔥 Análise de Regiões</h4>
+        
+        <!-- Botão para calcular -->
+        <button class="action-btn" onclick="analyzeRegions()" style="width: 100%; margin-bottom: 12px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 10px; border-radius: 8px; cursor: pointer; font-weight: 600; transition: all 0.2s;">
+            📊 Analisar Regiões
+        </button>
+        
+        <!-- Gargalos (Alta Movimentação) -->
+        <div style="margin-bottom: 16px;">
+            <h5 style="margin: 0 0 8px 0; font-size: 13px; color: #c53030; display: flex; align-items: center; gap: 6px;">
+                🔴 Gargalos (Alta Movimentação)
+            </h5>
+            <div id="high-traffic-regions" class="region-analysis-list">
+                <p style="text-align: center; color: #999; font-size: 12px; padding: 12px;">
+                    Clique em "Analisar Regiões" para ver os gargalos
+                </p>
+            </div>
+        </div>
+        
+        <!-- Baixa Movimentação -->
+        <div>
+            <h5 style="margin: 0 0 8px 0; font-size: 13px; color: #2f855a; display: flex; align-items: center; gap: 6px;">
+                🟢 Baixa Movimentação
+            </h5>
+            <div id="low-traffic-regions" class="region-analysis-list">
+                <p style="text-align: center; color: #999; font-size: 12px; padding: 12px;">
+                    Clique em "Analisar Regiões" para ver áreas de baixa movimentação
+                </p>
+            </div>
+        </div>
+        
+        <!-- Botão para limpar círculos -->
+        <button class="action-btn" onclick="clearRegionCircles()" style="width: 100%; margin-top: 12px; background: #f7fafc; color: #718096; border: 2px solid #e2e8f0; padding: 8px; border-radius: 8px; cursor: pointer; font-weight: 600; transition: all 0.2s;">
+            🗑️ Limpar Círculos
+        </button>
+    </div>
             
             <div class="summary-grid-compact">
                 <!-- Card 1: Embarques -->
@@ -566,46 +605,7 @@
                     <!-- Será preenchido dinamicamente -->
                 </div>
             </div>
-             <!-- ✅ NOVA SEÇÃO: ANÁLISE DE REGIÕES -->
-    <div class="legend-section">
-        <h4>🔥 Análise de Regiões</h4>
-        
-        <!-- Botão para calcular -->
-        <button class="action-btn" onclick="analyzeRegions()" style="width: 100%; margin-bottom: 12px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 10px; border-radius: 8px; cursor: pointer; font-weight: 600; transition: all 0.2s;">
-            📊 Analisar Regiões
-        </button>
-        
-        <!-- Gargalos (Alta Movimentação) -->
-        <div style="margin-bottom: 16px;">
-            <h5 style="margin: 0 0 8px 0; font-size: 13px; color: #c53030; display: flex; align-items: center; gap: 6px;">
-                🔴 Gargalos (Alta Movimentação)
-            </h5>
-            <div id="high-traffic-regions" class="region-analysis-list">
-                <p style="text-align: center; color: #999; font-size: 12px; padding: 12px;">
-                    Clique em "Analisar Regiões" para ver os gargalos
-                </p>
-            </div>
-        </div>
-        
-        <!-- Baixa Movimentação -->
-        <div>
-            <h5 style="margin: 0 0 8px 0; font-size: 13px; color: #2f855a; display: flex; align-items: center; gap: 6px;">
-                🟢 Baixa Movimentação
-            </h5>
-            <div id="low-traffic-regions" class="region-analysis-list">
-                <p style="text-align: center; color: #999; font-size: 12px; padding: 12px;">
-                    Clique em "Analisar Regiões" para ver áreas de baixa movimentação
-                </p>
-            </div>
-        </div>
-        
-        <!-- Botão para limpar círculos -->
-        <button class="action-btn" onclick="clearRegionCircles()" style="width: 100%; margin-top: 12px; background: #f7fafc; color: #718096; border: 2px solid #e2e8f0; padding: 8px; border-radius: 8px; cursor: pointer; font-weight: 600; transition: all 0.2s;">
-            🗑️ Limpar Círculos
-        </button>
-    </div>
-
-
+          
 
         </div>
         
