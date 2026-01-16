@@ -3,6 +3,11 @@
 // 
 let regionCircles = []; // Armazenar círculos desenhados
 let analyzedRegions = { high: [], low: [] }; // Armazenar dados das regiões
+let busStopsLayer = null;
+let busStopsData = [];
+let busStopsVisible = false;
+let busStopsSpatialIndex = null; // ✅ Índice espacial
+let csvStationsSpatialIndex = null; // ✅ Índice espacial para CSV
 
 let markers = [];
 let latlngs = [];
@@ -270,8 +275,429 @@ function closeRegionAnalysis() {
     }
 }
 
+// ============================================
+// SELEÇÃO DAS PARADAS GEOJSON
+// ============================================
+// ✅ CRIAR ÍNDICE ESPACIAL (GRID-BASED) - O(1) lookup
+function createSpatialIndex(points, getCoordsFunc, cellSize = 0.001) {
+    const index = new Map();
+    
+    points.forEach((point, idx) => {
+        const coords = getCoordsFunc(point);
+        const cellX = Math.floor(coords[0] / cellSize);
+        const cellY = Math.floor(coords[1] / cellSize);
+        const key = `${cellX},${cellY}`;
+        
+        if (!index.has(key)) {
+            index.set(key, []);
+        }
+        index.get(key).push({ point, idx, coords });
+    });
+    
+    return { index, cellSize };
+}
 
+// ✅ BUSCAR VIZINHOS NO GRID - O(1) em vez de O(n)
+function findNearbyInIndex(spatialIndex, lat, lng, maxDistance) {
+    const { index, cellSize } = spatialIndex;
+    const cellX = Math.floor(lat / cellSize);
+    const cellY = Math.floor(lng / cellSize);
+    
+    const results = [];
+    const cellRadius = Math.ceil(maxDistance / cellSize);
+    
+    // Verificar células adjacentes
+    for (let dx = -cellRadius; dx <= cellRadius; dx++) {
+        for (let dy = -cellRadius; dy <= cellRadius; dy++) {
+            const key = `${cellX + dx},${cellY + dy}`;
+            const cell = index.get(key);
+            
+            if (cell) {
+                cell.forEach(item => {
+                    const distance = Math.sqrt(
+                        Math.pow(lat - item.coords[0], 2) +
+                        Math.pow(lng - item.coords[1], 2)
+                    );
+                    
+                    if (distance <= maxDistance) {
+                        results.push({ ...item, distance: distance * 111000 });
+                    }
+                });
+            }
+        }
+    }
+    
+    return results;
+}
 
+// ✅ CARREGAR PARADAS COM OTIMIZAÇÕES
+async function loadBusStops() {
+    console.log('🚏 Carregando paradas de ônibus (otimizado)...');
+    
+    try {
+        const response = await fetch('rotas/paradas.geojson');
+        
+        if (!response.ok) {
+            throw new Error(`Erro ao carregar GeoJSON: ${response.status}`);
+        }
+        
+        const geojsonData = await response.json();
+        console.log('✅ GeoJSON carregado:', geojsonData);
+        
+        busStopsData = geojsonData.features || [];
+        console.log(`📊 ${busStopsData.length} paradas encontradas`);
+        
+        // ✅ CRIAR ÍNDICE ESPACIAL PARA PARADAS
+        busStopsSpatialIndex = createSpatialIndex(
+            busStopsData,
+            (feature) => [feature.geometry.coordinates[1], feature.geometry.coordinates[0]]
+        );
+        console.log('✅ Índice espacial criado para paradas');
+        
+        // ✅ CRIAR ÍNDICE ESPACIAL PARA ESTAÇÕES DO CSV (se ainda não existe)
+        if (!csvStationsSpatialIndex && allStationsData.length > 0) {
+            csvStationsSpatialIndex = createSpatialIndex(
+                allStationsData,
+                (station) => station.latlng
+            );
+            console.log('✅ Índice espacial criado para estações CSV');
+        }
+        
+        // ✅ VERIFICAR CONFLITOS (OTIMIZADO)
+        const conflicts = checkConflictsOptimized(busStopsData, 0.0001);
+        if (conflicts.length > 0) {
+            console.warn(`⚠️ ${conflicts.length} paradas próximas de estações do CSV`);
+        }
+        
+        // ✅ ADICIONAR AO MAPA
+        addBusStopsToMapOptimized(geojsonData);
+        
+        // ✅ DEFINIR COMO VISÍVEL E ATUALIZAR BOTÃO
+        busStopsVisible = true;
+        updateBusStopsButton();
+        
+        return busStopsData;
+        
+    } catch (error) {
+        console.error('❌ Erro ao carregar paradas:', error);
+        busStopsVisible = false;
+        updateBusStopsButton();
+        return [];
+    }
+}
+
+// ✅ ATUALIZAR ESTADO DO BOTÃO
+function updateBusStopsButton() {
+    const button = document.getElementById('toggle-bus-stops');
+    if (!button) return;
+    
+    if (busStopsVisible) {
+        button.innerHTML = '🙈 Ocultar Paradas';
+        button.style.background = 'linear-gradient(135deg, #f44336 0%, #e91e63 100%)';
+    } else {
+        button.innerHTML = '👁️ Mostrar Paradas';
+        button.style.background = 'linear-gradient(135deg, #4CAF50 0%, #45a049 100%)';
+    }
+}
+
+// ✅ VERIFICAR CONFLITOS OTIMIZADO - O(n) em vez de O(n*m)
+function checkConflictsOptimized(geojsonFeatures, threshold = 0.0001) {
+    if (!csvStationsSpatialIndex) return [];
+    
+    const conflicts = [];
+    
+    geojsonFeatures.forEach(feature => {
+        const geoLat = feature.geometry.coordinates[1];
+        const geoLng = feature.geometry.coordinates[0];
+        
+        // ✅ BUSCAR APENAS ESTAÇÕES PRÓXIMAS (O(1))
+        const nearby = findNearbyInIndex(
+            csvStationsSpatialIndex,
+            geoLat,
+            geoLng,
+            threshold
+        );
+        
+        if (nearby.length > 0) {
+            nearby.forEach(item => {
+                conflicts.push({
+                    geojsonName: feature.properties.Name,
+                    csvStation: item.point.stationNumber,
+                    distance: item.distance
+                });
+            });
+        }
+    });
+    
+    return conflicts;
+}
+
+// ✅ ADICIONAR PARADAS AO MAPA - OTIMIZADO COM CLUSTERING
+function addBusStopsToMapOptimized(geojsonData) {
+    console.log('🗺️ Adicionando paradas (otimizado)...');
+    
+    if (busStopsLayer) {
+        map.removeLayer(busStopsLayer);
+    }
+    
+    // ✅ USAR MARKERCLUSTERGROUP PARA MUITAS PARADAS
+    const useCluster = busStopsData.length > 100;
+    
+    if (useCluster) {
+        busStopsLayer = L.markerClusterGroup({
+            chunkedLoading: true,
+            chunkInterval: 100,
+            chunkDelay: 50,
+            maxClusterRadius: 60,
+            spiderfyOnMaxZoom: false,
+            showCoverageOnHover: false,
+            zoomToBoundsOnClick: true,
+            disableClusteringAtZoom: 16,
+            animate: false,
+            animateAddingMarkers: false,
+            iconCreateFunction: function(cluster) {
+                const count = cluster.getChildCount();
+                return L.divIcon({
+                    html: `<div style="
+                        background: #4CAF50;
+                        color: white;
+                        border-radius: 50%;
+                        width: 35px;
+                        height: 35px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        font-weight: 700;
+                        font-size: 12px;
+                        box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+                    ">${count}</div>`,
+                    className: 'bus-stop-cluster',
+                    iconSize: [35, 35]
+                });
+            }
+        });
+    } else {
+        busStopsLayer = L.layerGroup();
+    }
+    
+    // ✅ ÍCONE OTIMIZADO E MAIOR (12px)
+    const busStopIcon = L.divIcon({
+        className: 'bus-stop-marker-geojson',
+        html: `<div style="
+            background: white;
+            border: 2.5px solid #4CAF50;
+            border-radius: 4px;
+            width: 12px;
+            height: 12px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+            transform: rotate(45deg);
+            position: relative;
+        ">
+            <div style="
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                width: 6px;
+                height: 6px;
+                background: #4CAF50;
+                border-radius: 50%;
+            "></div>
+        </div>`,
+        iconSize: [12, 12],
+        iconAnchor: [6, 6],
+        popupAnchor: [0, -6]
+    });
+    
+    // ✅ PROCESSAR EM CHUNKS (NÃO TRAVAR UI)
+    const CHUNK_SIZE = 100;
+    let currentIndex = 0;
+    
+    function processChunk() {
+        const endIndex = Math.min(currentIndex + CHUNK_SIZE, busStopsData.length);
+        
+        for (let i = currentIndex; i < endIndex; i++) {
+            const feature = busStopsData[i];
+            const coords = feature.geometry.coordinates;
+            const marker = L.marker([coords[1], coords[0]], {
+                icon: busStopIcon,
+                title: feature.properties.Name || 'Parada',
+                zIndexOffset: -100
+            });
+            
+            // ✅ LAZY LOADING DE POPUP (só cria quando clica)
+            marker.on('click', function() {
+                if (!marker.getPopup()) {
+                    const popupContent = createPopupContent(feature);
+                    marker.bindPopup(popupContent, {
+                        maxWidth: 250,
+                        className: 'bus-stop-popup-geojson'
+                    });
+                }
+                marker.openPopup();
+            });
+            
+            // ✅ TOOLTIP SIMPLES
+            marker.bindTooltip(feature.properties.Name || 'Parada', {
+                permanent: false,
+                direction: 'top',
+                offset: [0, -8],
+                className: 'bus-stop-tooltip-geojson'
+            });
+            
+            busStopsLayer.addLayer(marker);
+        }
+        
+        currentIndex = endIndex;
+        
+        if (currentIndex < busStopsData.length) {
+            requestAnimationFrame(processChunk);
+        } else {
+            busStopsLayer.addTo(map);
+            console.log(`✅ ${busStopsData.length} paradas adicionadas (otimizado)`);
+        }
+    }
+    
+    processChunk();
+}
+
+// ✅ CRIAR CONTEÚDO DO POPUP (CACHE)
+function createPopupContent(feature) {
+    const cacheKey = feature.properties.Name;
+    
+    if (popupCache.has(cacheKey)) {
+        return popupCache.get(cacheKey);
+    }
+    
+    const props = feature.properties || {};
+    const name = props.Name || 'Parada sem nome';
+    const coords = feature.geometry.coordinates;
+    const lat = coords[1];
+    const lng = coords[0];
+    const pointNumber = name.match(/\d+/)?.[0] || '';
+    
+    // ✅ BUSCAR ESTAÇÃO MAIS PRÓXIMA (OTIMIZADO)
+    const nearestStation = findNearestStationOptimized(lat, lng);
+    
+    const content = `
+        <div style="min-width: 200px; font-family: Arial, sans-serif;">
+            <h4 style="margin: 0 0 10px 0; color: #4CAF50; font-size: 14px; font-weight: 700;">
+                🚏 ${name}
+            </h4>
+            <div style="font-size: 12px; line-height: 1.6; color: #444;">
+                ${pointNumber ? `<div style="background: #e8f5e9; padding: 4px 8px; border-radius: 4px; margin-bottom: 8px; font-weight: 600; color: #2e7d32; font-size: 11px;">
+                    📍 Parada #${pointNumber}
+                </div>` : ''}
+                ${nearestStation ? `<div style="background: #fff3e0; padding: 4px 8px; border-radius: 4px; margin-bottom: 8px; font-size: 11px; color: #e65100;">
+                    ⚠️ Próxima à Est. ${nearestStation.stationNumber} (${nearestStation.distance.toFixed(0)}m)
+                </div>` : ''}
+                <strong style="font-size: 11px;">📍 Coordenadas:</strong><br>
+                <span style="font-family: monospace; background: #f5f5f5; padding: 3px 6px; border-radius: 3px; font-size: 10px;">
+                    ${lat.toFixed(6)}, ${lng.toFixed(6)}
+                </span>
+            </div>
+        </div>
+    `;
+    
+    popupCache.set(cacheKey, content);
+    return content;
+}
+
+// ✅ ENCONTRAR ESTAÇÃO MAIS PRÓXIMA - OTIMIZADO
+function findNearestStationOptimized(lat, lng, maxDistance = 0.0005) {
+    if (!csvStationsSpatialIndex) return null;
+    
+    const nearby = findNearbyInIndex(csvStationsSpatialIndex, lat, lng, maxDistance);
+    
+    if (nearby.length === 0) return null;
+    
+    // Retornar o mais próximo
+    nearby.sort((a, b) => a.distance - b.distance);
+    
+    return {
+        stationNumber: nearby[0].point.stationNumber,
+        distance: nearby[0].distance
+    };
+}
+
+// ✅ ALTERNAR VISIBILIDADE - CORRIGIDO
+function toggleBusStops() {
+    if (!busStopsLayer) {
+        console.warn('⚠️ Nenhuma camada de paradas carregada');
+        loadBusStops();
+        return;
+    }
+    
+    busStopsVisible = !busStopsVisible;
+    
+    if (busStopsVisible) {
+        map.addLayer(busStopsLayer);
+        console.log('👁️ Paradas do GeoJSON visíveis');
+    } else {
+        map.removeLayer(busStopsLayer);
+        console.log('🙈 Paradas do GeoJSON ocultas');
+    }
+    
+    // ✅ ATUALIZAR BOTÃO
+    updateBusStopsButton();
+    
+    return busStopsVisible;
+}
+
+// ✅ BUSCAR PARADA MAIS PRÓXIMA - OTIMIZADO
+function findNearestBusStop(lat, lng, maxDistance = 0.001) {
+    if (!busStopsSpatialIndex) return null;
+    
+    const nearby = findNearbyInIndex(busStopsSpatialIndex, lat, lng, maxDistance);
+    
+    if (nearby.length === 0) return null;
+    
+    nearby.sort((a, b) => a.distance - b.distance);
+    const nearest = nearby[0];
+    
+    return {
+        name: nearest.point.properties.Name,
+        lat: nearest.coords[0],
+        lng: nearest.coords[1],
+        distance: nearest.distance,
+        feature: nearest.point
+    };
+}
+
+// ✅ OBTER TODAS AS PARADAS - CACHED
+function getAllBusStops() {
+    if (allBusStopsCache) return allBusStopsCache;
+    
+    allBusStopsCache = busStopsData.map(feature => ({
+        name: feature.properties.Name,
+        lat: feature.geometry.coordinates[1],
+        lng: feature.geometry.coordinates[0],
+        properties: feature.properties
+    }));
+    
+    return allBusStopsCache;
+}
+
+// ✅ LIMPAR CACHE (chamar quando recarregar dados)
+function clearBusStopsCache() {
+    popupCache.clear();
+    allBusStopsCache = null;
+    busStopsSpatialIndex = null;
+}
+
+// ✅ FUNÇÃO DEBOUNCE (UTILITY)
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func(...args), wait);
+    };
+}
+
+// ✅ INICIALIZAR ESTADO DO BOTÃO AO CARREGAR PÁGINA
+document.addEventListener('DOMContentLoaded', function() {
+    updateBusStopsButton(); // Sincronizar estado inicial
+});
 // ============================================
 // ANÁLISE DE REGIÕES - CÓDIGO COMPLETO AJUSTADO
 // ============================================

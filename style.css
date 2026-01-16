@@ -2336,6 +2336,79 @@ body {
 }
 
 
+/* ============================================ */
+/* PARADAS DE ÔNIBUS - VERSÃO MELHORADA */
+/* ============================================ */
+.bus-stop-marker {
+    background: transparent !important;
+    border: none !important;
+}
 
+.bus-stop-tooltip {
+    background: rgba(33, 150, 243, 0.95) !important;
+    border: none !important;
+    border-radius: 6px !important;
+    color: white !important;
+    font-weight: 600 !important;
+    font-size: 11px !important;
+    padding: 4px 10px !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+    white-space: nowrap !important;
+}
 
+.bus-stop-tooltip::before {
+    border-top-color: rgba(33, 150, 243, 0.95) !important;
+}
+
+.bus-stop-popup .leaflet-popup-content-wrapper {
+    border-radius: 12px !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15) !important;
+    padding: 12px !important;
+}
+
+.bus-stop-popup .leaflet-popup-tip {
+    background: white !important;
+}
+
+.bus-stop-popup .leaflet-popup-content {
+    margin: 0 !important;
+}
+/* ============================================ */
+/* PARADAS DE ÔNIBUS (GeoJSON) - VERDE */
+/* ============================================ */
+.bus-stop-marker-geojson {
+    background: transparent !important;
+    border: none !important;
+}
+
+.bus-stop-tooltip-geojson {
+    background: rgba(76, 175, 80, 0.95) !important;
+    border: none !important;
+    border-radius: 6px !important;
+    color: white !important;
+    font-weight: 600 !important;
+    font-size: 11px !important;
+    padding: 4px 10px !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+    white-space: nowrap !important;
+}
+
+.bus-stop-tooltip-geojson::before {
+    border-top-color: rgba(76, 175, 80, 0.95) !important;
+}
+
+.bus-stop-popup-geojson .leaflet-popup-content-wrapper {
+    border-radius: 12px !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15) !important;
+    padding: 12px !important;
+    border-left: 4px solid #4CAF50 !important;
+}
+
+.bus-stop-popup-geojson .leaflet-popup-tip {
+    background: white !important;
+}
+
+.bus-stop-popup-geojson .leaflet-popup-content {
+    margin: 0 !important;
+}
 
