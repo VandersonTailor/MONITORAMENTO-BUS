@@ -2260,7 +2260,79 @@ body {
     color: #333;
 }
 
+/* ============================================ */
+/* ANÁLISE DE REGIÕES */
+/* ============================================ */
+.region-analysis-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
 
+.region-item {
+    padding: 10px;
+    background: white;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 12px;
+}
+
+.region-item:hover {
+    border-color: #667eea;
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.15);
+    transform: translateX(4px);
+}
+
+.region-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.region-item-name {
+    font-weight: 700;
+    color: #2d3748;
+    font-size: 13px;
+}
+
+.region-item-value {
+    font-weight: 700;
+    font-size: 14px;
+}
+
+.region-item-details {
+    font-size: 11px;
+    color: #718096;
+}
+
+.region-item.high-traffic {
+    border-color: #feb2b2;
+    background: #fff5f5;
+}
+
+.region-item.high-traffic:hover {
+    border-color: #fc8181;
+}
+
+.region-item.high-traffic .region-item-value {
+    color: #c53030;
+}
+
+.region-item.low-traffic {
+    border-color: #c6f6d5;
+    background: #f0fff4;
+}
+
+.region-item.low-traffic:hover {
+    border-color: #9ae6b4;
+}
+
+.region-item.low-traffic .region-item-value {
+    color: #2f855a;
+}
 
 
 

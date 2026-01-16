@@ -1,6 +1,9 @@
 // 
 // VARIÁVEIS GLOBAIS (PRIMEIRO!)
 // 
+let regionCircles = []; // Armazenar círculos desenhados
+let analyzedRegions = { high: [], low: [] }; // Armazenar dados das regiões
+
 let markers = [];
 let latlngs = [];
 let allStationsData = [];
@@ -16,7 +19,7 @@ let drawnItems = new L.FeatureGroup();  // ✅ DECLARAR ANTES!
 let regionSelectionLayer = null;
 
 // 🚫 Estações excluídas dos cálculos
-const EXCLUDED_STATIONS = [149, 147, 151, 1, 2, 153, 148, 146];
+const EXCLUDED_STATIONS = [149, 138, 147, 151,3, 1, 2, 153, 148, 146, 143, 140 , 142, 145, 144, 141];
 
 // Mapeamento de tarifas
 const tariffTypes = {
@@ -90,122 +93,359 @@ function initializeRegionSelection() {
     console.log('✅ Seleção de região habilitada');
 }
 
-// ✅ ANALISAR ESTAÇÕES DENTRO DA REGIÃO
-function analyzeRegion(bounds) {
-    console.log('📍 Analisando região:', bounds);
+// ============================================
+// ANÁLISE DE REGIÕES - CÓDIGO COMPLETO AJUSTADO
+// ============================================
+
+// ✅ ANALISAR REGIÕES - COM REFRESH AUTOMÁTICO
+function analyzeRegions() {
+    console.log('🔍 Analisando regiões...');
     
-    const stationsInRegion = [];
-    let totalBoarding = 0;
-    let totalAlighting = 0;
+    // ✅ LIMPAR ANÁLISE ANTERIOR COMPLETAMENTE (REFRESH)
+    clearRegionCircles();
+    
+    if (allStationsData.length === 0) {
+        alert('❌ Nenhuma estação disponível para análise');
+        return;
+    }
+    
+    // ✅ AGRUPAR ESTAÇÕES POR PROXIMIDADE (raio de ~800m)
+    const regions = [];
+    const processedStations = new Set();
+    const PROXIMITY_THRESHOLD = 0.008; // ~800 metros
     
     allStationsData.forEach((station, index) => {
         if (isStationExcluded(station)) return;
+        if (processedStations.has(index)) return;
+        
+        const totalMovement = (station.boarding || 0) + (station.alighting || 0);
+        if (totalMovement === 0) return;
         
         const lat = station.latlng[0];
         const lng = station.latlng[1];
         
-        if (bounds.contains([lat, lng])) {
-            stationsInRegion.push({
-                ...station,
-                index: index
-            });
+        // Criar nova região
+        const region = {
+            stations: [station],
+            stationIndices: [index],
+            centerLat: lat,
+            centerLng: lng,
+            totalBoarding: station.boarding || 0,
+            totalAlighting: station.alighting || 0,
+            totalMovement: totalMovement,
+            minLat: lat,
+            maxLat: lat,
+            minLng: lng,
+            maxLng: lng
+        };
+        
+        processedStations.add(index);
+        
+        // Buscar estações próximas
+        allStationsData.forEach((otherStation, otherIndex) => {
+            if (isStationExcluded(otherStation)) return;
+            if (processedStations.has(otherIndex)) return;
             
-            totalBoarding += station.boarding || 0;
-            totalAlighting += station.alighting || 0;
-        }
+            const otherMovement = (otherStation.boarding || 0) + (otherStation.alighting || 0);
+            if (otherMovement === 0) return;
+            
+            const otherLat = otherStation.latlng[0];
+            const otherLng = otherStation.latlng[1];
+            
+            // Calcular distância
+            const distance = Math.sqrt(
+                Math.pow(lat - otherLat, 2) + 
+                Math.pow(lng - otherLng, 2)
+            );
+            
+            // Se estiver próxima, adicionar à região
+            if (distance <= PROXIMITY_THRESHOLD) {
+                region.stations.push(otherStation);
+                region.stationIndices.push(otherIndex);
+                region.totalBoarding += otherStation.boarding || 0;
+                region.totalAlighting += otherStation.alighting || 0;
+                region.totalMovement += otherMovement;
+                
+                // Atualizar bounds
+                region.minLat = Math.min(region.minLat, otherLat);
+                region.maxLat = Math.max(region.maxLat, otherLat);
+                region.minLng = Math.min(region.minLng, otherLng);
+                region.maxLng = Math.max(region.maxLng, otherLng);
+                
+                processedStations.add(otherIndex);
+            }
+        });
+        
+        // Recalcular centro da região (centro geométrico)
+        region.centerLat = (region.minLat + region.maxLat) / 2;
+        region.centerLng = (region.minLng + region.maxLng) / 2;
+        
+        // Calcular raio necessário para cobrir todas as estações
+        let maxDistance = 0;
+        region.stations.forEach(s => {
+            const dist = Math.sqrt(
+                Math.pow(region.centerLat - s.latlng[0], 2) + 
+                Math.pow(region.centerLng - s.latlng[1], 2)
+            );
+            maxDistance = Math.max(maxDistance, dist);
+        });
+        
+        // Converter para metros (aproximação) e adicionar margem
+        region.radius = Math.max(300, (maxDistance * 111000) + 150);
+        
+        regions.push(region);
     });
     
-    console.log(`📊 ${stationsInRegion.length} estações encontradas na região`);
-    console.log(`   ↗️ Total embarques: ${totalBoarding}`);
-    console.log(`   ↘️ Total desembarques: ${totalAlighting}`);
+    console.log(`📊 ${regions.length} regiões encontradas`);
     
-    showRegionAnalysisModal({
-        stations: stationsInRegion,
-        totalBoarding: totalBoarding,
-        totalAlighting: totalAlighting,
-        bounds: bounds
+    // ✅ ORDENAR POR EMBARQUES
+    const highTraffic = [...regions]
+        .sort((a, b) => b.totalBoarding - a.totalBoarding)
+        .slice(0, 5);
+    
+    const lowTraffic = [...regions]
+        .sort((a, b) => a.totalBoarding - b.totalBoarding)
+        .slice(0, 5);
+    
+    // Armazenar globalmente
+    analyzedRegions.high = highTraffic;
+    analyzedRegions.low = lowTraffic;
+    
+    console.log('🔴 Top 5 Regiões de Gargalo (Mais Embarques):');
+    highTraffic.forEach((r, i) => {
+        console.log(`   ${i + 1}. ${r.stations.length} estações - ${r.totalBoarding} embarques`);
     });
+    
+    console.log('🟢 Top 5 Regiões com Menos Embarques:');
+    lowTraffic.forEach((r, i) => {
+        console.log(`   ${i + 1}. ${r.stations.length} estações - ${r.totalBoarding} embarques`);
+    });
+    
+    // Exibir no painel
+    displayHighTrafficRegions(highTraffic);
+    displayLowTrafficRegions(lowTraffic);
 }
 
-// ✅ EXIBIR MODAL COM ANÁLISE DA REGIÃO
-function showRegionAnalysisModal(data) {
-    closeRegionAnalysis();
+// ✅ EXIBIR GARGALOS
+function displayHighTrafficRegions(regions) {
+    const container = document.getElementById('high-traffic-regions');
     
-    const { stations, totalBoarding, totalAlighting, bounds } = data;
+    if (!container) {
+        console.error('❌ Elemento high-traffic-regions não encontrado');
+        return;
+    }
     
-    const overlay = document.createElement('div');
-    overlay.className = 'modal-overlay';
-    overlay.id = 'region-overlay';
-    overlay.onclick = closeRegionAnalysis;
+    if (regions.length === 0) {
+        container.innerHTML = '<p style="text-align: center; color: #999; font-size: 12px; padding: 12px;">Nenhum gargalo identificado</p>';
+        return;
+    }
     
-    const modal = document.createElement('div');
-    modal.className = 'region-analysis-modal';
-    modal.id = 'region-modal';
-    
-    const balance = totalBoarding - totalAlighting;
-    
-    modal.innerHTML = `
-        <button class="region-analysis-close" onclick="closeRegionAnalysis()">×</button>
+    container.innerHTML = regions.map((region, index) => {
+        const stationsList = region.stations
+            .map(s => `Est. ${s.stationNumber}`)
+            .slice(0, 3)
+            .join(', ');
+        const moreStations = region.stations.length > 3 ? ` +${region.stations.length - 3}` : '';
         
-        <h2>📍 Análise da Região Selecionada</h2>
-        
-        <div class="region-stats-grid">
-            <div class="region-stat-card">
-                <div class="region-stat-label">Estações</div>
-                <div class="region-stat-value region-stat-stations">${stations.length}</div>
-            </div>
-            <div class="region-stat-card">
-                <div class="region-stat-label">↗️ Embarcaram</div>
-                <div class="region-stat-value region-stat-boarding">${totalBoarding}</div>
-            </div>
-            <div class="region-stat-card">
-                <div class="region-stat-label">↘️ Desceram</div>
-                <div class="region-stat-value region-stat-alighting">${totalAlighting}</div>
-            </div>
-            <div class="region-stat-card">
-                <div class="region-stat-label">💰 Saldo</div>
-                <div class="region-stat-value" style="color: ${balance >= 0 ? '#4CAF50' : '#F44336'}">
-                    ${balance >= 0 ? '+' : ''}${balance}
+        return `
+            <div class="region-item high-traffic" onclick="highlightRegionByIndex(${index}, 'high')">
+                <div class="region-item-header">
+                    <span class="region-item-name">🔴 Região ${index + 1}</span>
+                    <span class="region-item-value">↗️ ${region.totalBoarding}</span>
+                </div>
+                <div class="region-item-details">
+                    ${region.stations.length} estações | ${stationsList}${moreStations}
                 </div>
             </div>
+        `;
+    }).join('');
+}
+
+// ✅ EXIBIR BAIXA MOVIMENTAÇÃO
+function displayLowTrafficRegions(regions) {
+    const container = document.getElementById('low-traffic-regions');
+    
+    if (!container) {
+        console.error('❌ Elemento low-traffic-regions não encontrado');
+        return;
+    }
+    
+    if (regions.length === 0) {
+        container.innerHTML = '<p style="text-align: center; color: #999; font-size: 12px; padding: 12px;">Nenhuma região de baixa movimentação</p>';
+        return;
+    }
+    
+    container.innerHTML = regions.map((region, index) => {
+        const stationsList = region.stations
+            .map(s => `Est. ${s.stationNumber}`)
+            .slice(0, 3)
+            .join(', ');
+        const moreStations = region.stations.length > 3 ? ` +${region.stations.length - 3}` : '';
+        
+        return `
+            <div class="region-item low-traffic" onclick="highlightRegionByIndex(${index}, 'low')">
+                <div class="region-item-header">
+                    <span class="region-item-name">🟢 Região ${index + 1}</span>
+                    <span class="region-item-value">↗️ ${region.totalBoarding}</span>
+                </div>
+                <div class="region-item-details">
+                    ${region.stations.length} estações | ${stationsList}${moreStations}
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// ✅ DESTACAR REGIÃO COM POPUP COMPLETO
+function highlightRegionByIndex(index, type) {
+    console.log(`📍 Destacando região ${index} do tipo ${type}`);
+    
+    const region = analyzedRegions[type][index];
+    
+    if (!region) {
+        console.error('❌ Região não encontrada:', index, type);
+        return;
+    }
+    
+    const color = type === 'high' ? '#c53030' : '#2f855a';
+    const fillColor = type === 'high' ? '#fc8181' : '#9ae6b4';
+    
+    console.log(`   Centro: [${region.centerLat}, ${region.centerLng}]`);
+    console.log(`   Raio: ${region.radius}m`);
+    console.log(`   Estações: ${region.stations.length}`);
+    
+    // Criar círculo
+    const circle = L.circle([region.centerLat, region.centerLng], {
+        color: color,
+        fillColor: fillColor,
+        fillOpacity: 0.15,
+        radius: region.radius,
+        weight: 4,
+        dashArray: '10, 5'
+    }).addTo(map);
+    
+    // Ordenar estações por embarques
+    const sortedStations = [...region.stations].sort((a, b) => (b.boarding || 0) - (a.boarding || 0));
+    
+    // Criar lista de estações para o popup
+    const stationsHTML = sortedStations.map(station => `
+        <div style="padding: 6px 8px; margin: 4px 0; background: #f7fafc; border-radius: 6px; border-left: 3px solid ${color};">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-weight: 700; color: #2d3748;">Est. ${station.stationNumber}</span>
+                <span style="font-size: 11px; color: #718096;">${station.line || 'N/A'}</span>
+            </div>
+            <div style="display: flex; gap: 12px; margin-top: 4px; font-size: 12px;">
+                <span style="color: #2f855a;">↗️ ${station.boarding || 0}</span>
+                <span style="color: #c53030;">↘️ ${station.alighting || 0}</span>
+            </div>
         </div>
-        
-        <h3 style="margin: 20px 0 12px 0; font-size: 16px;">📋 Estações na Região:</h3>
-        
-        <div class="region-stations-list">
-            ${stations.length > 0 ? stations.map(station => `
-                <div class="region-station-item">
-                    <div class="region-station-info">
-                        <span class="region-station-number">Est. ${station.stationNumber}</span>
-                        <span class="region-station-line">${station.line}</span>
-                        <div style="font-size: 11px; color: #999; margin-top: 2px;">
-                            ${station.time1 || 'N/A'}
-                        </div>
+    `).join('');
+    
+    // Adicionar popup detalhado
+    circle.bindPopup(`
+        <div style="min-width: 280px; max-width: 350px;">
+            <h4 style="margin: 0 0 12px 0; color: ${color}; font-size: 16px; font-weight: 700;">
+                ${type === 'high' ? '🔴 Região de Gargalo' : '🟢 Região de Baixa Movimentação'}
+            </h4>
+            
+            <div style="background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%); padding: 12px; border-radius: 8px; margin-bottom: 12px;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 13px;">
+                    <div>
+                        <div style="color: #718096; font-size: 11px;">ESTAÇÕES</div>
+                        <div style="font-weight: 700; font-size: 18px; color: #2d3748;">${region.stations.length}</div>
                     </div>
-                    <div class="region-station-metrics">
-                        <span class="region-station-boarding">↗️ ${station.boarding || 0}</span>
-                        <span class="region-station-alighting">↘️ ${station.alighting || 0}</span>
+                    <div>
+                        <div style="color: #718096; font-size: 11px;">TOTAL MOVIMENTO</div>
+                        <div style="font-weight: 700; font-size: 18px; color: #2d3748;">${region.totalMovement}</div>
+                    </div>
+                    <div>
+                        <div style="color: #2f855a; font-size: 11px;">↗️ EMBARQUES</div>
+                        <div style="font-weight: 700; font-size: 18px; color: #2f855a;">${region.totalBoarding}</div>
+                    </div>
+                    <div>
+                        <div style="color: #c53030; font-size: 11px;">↘️ DESEMBARQUES</div>
+                        <div style="font-weight: 700; font-size: 18px; color: #c53030;">${region.totalAlighting}</div>
                     </div>
                 </div>
-            `).join('') : '<p style="text-align: center; color: #999;">Nenhuma estação encontrada</p>'}
+            </div>
+            
+            <h5 style="margin: 0 0 8px 0; font-size: 13px; color: #4a5568; font-weight: 600;">
+                📋 Estações na Região (${region.stations.length}):
+            </h5>
+            
+            <div style="max-height: 250px; overflow-y: auto;">
+                ${stationsHTML}
+            </div>
         </div>
-    `;
+    `, {
+        maxWidth: 400,
+        className: 'region-popup'
+    }).openPopup();
     
-    document.body.appendChild(overlay);
-    document.body.appendChild(modal);
+    // Centralizar mapa na região
+    map.setView([region.centerLat, region.centerLng], 15, { 
+        animate: true,
+        duration: 0.5
+    });
+    
+    // Armazenar para remover depois
+    regionCircles.push(circle);
+    
+    console.log('✅ Círculo criado com sucesso!');
 }
 
-// ✅ FECHAR MODAL
-function closeRegionAnalysis() {
-    const overlay = document.getElementById('region-overlay');
-    const modal = document.getElementById('region-modal');
+// ✅ LIMPAR CÍRCULOS E INFORMAÇÕES - VERSÃO COMPLETA
+function clearRegionCircles() {
+    console.log('🗑️ Limpando círculos e análises...');
     
-    if (overlay) overlay.remove();
-    if (modal) modal.remove();
+    // ✅ 1. LIMPAR CÍRCULOS DO MAPA
+    if (regionCircles && regionCircles.length > 0) {
+        console.log(`   Removendo ${regionCircles.length} círculos do mapa`);
+        
+        regionCircles.forEach((circle, index) => {
+            try {
+                if (circle && map.hasLayer(circle)) {
+                    map.removeLayer(circle);
+                    console.log(`   ✅ Círculo ${index + 1} removido`);
+                }
+            } catch (error) {
+                console.error(`   ❌ Erro ao remover círculo ${index + 1}:`, error);
+            }
+        });
+        
+        regionCircles = [];
+    } else {
+        console.log('   ℹ️ Nenhum círculo para limpar');
+    }
+    
+    // ✅ 2. LIMPAR DADOS DAS REGIÕES ANALISADAS
+    analyzedRegions = { high: [], low: [] };
+    console.log('   ✅ Dados de análise limpos');
+    
+    // ✅ 3. RESETAR INTERFACE DO PAINEL
+    const highContainer = document.getElementById('high-traffic-regions');
+    const lowContainer = document.getElementById('low-traffic-regions');
+    
+    if (highContainer) {
+        highContainer.innerHTML = '<p style="text-align: center; color: #999; font-size: 12px; padding: 12px;">Clique em "Analisar Regiões" para ver os gargalos</p>';
+        console.log('   ✅ Painel de gargalos resetado');
+    }
+    
+    if (lowContainer) {
+        lowContainer.innerHTML = '<p style="text-align: center; color: #999; font-size: 12px; padding: 12px;">Clique em "Analisar Regiões" para ver áreas de baixa movimentação</p>';
+        console.log('   ✅ Painel de baixa movimentação resetado');
+    }
+    
+    console.log('✅ Limpeza completa concluída!');
 }
 
+// ============================================
+// FIM DO BLOCO DE ANÁLISE DE REGIÕES
+// ============================================
 
-
+// ============================================
+// FIM DO BLOCO DE ANÁLISE DE REGIÕES
+// ============================================
 
 // Função auxiliar para verificar se estação deve ser ignorada
 function isStationExcluded(station) {
